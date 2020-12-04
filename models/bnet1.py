@@ -117,7 +117,7 @@ class BranchNet1(BranchNet):
             if _n_zeros > 0:
                 # help fix division by zero
                 self.logger.debug(f'Some branches({_n_zeros}) estimating zero losses: {a}')
-                a[i, :] += np.finfo(float).eps
+                a[i, :] += 2e-32
 
             p = 1 / a[i,:]
             # normalize
