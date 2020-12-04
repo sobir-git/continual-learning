@@ -31,11 +31,11 @@ class BranchNet1(nn.Module):
 
         est_losses = [self.calc_estimation_loss(br, base_out=base_out) for br in self.branches]
         # choose a branch with minimum estimated loss for each batch item
-        po = np.hstack([e.detach().cpu().numpy().reshape(N, 1) for e in est_losses])  # shape (N, B)
+        po = torch.hstack([e.view(N, 1) for e in est_losses])  # shape (N, B)
         assert po.shape == (N, B), po.shape
 
         # from each row get argmin -> branch_idx
-        branch_ids = np.argmin(po, axis=1)
+        branch_ids = torch.argmin(po, 1)
         assert branch_ids.shape == (N,), branch_ids.shape
 
         # get item indices that will be fed to each branch
@@ -43,7 +43,7 @@ class BranchNet1(nn.Module):
         ids = []
         for i, br in enumerate(self.branches):
             # select items that go to branch i
-            item_ids = branch_ids == i
+            item_ids = torch.eq(branch_ids, i)
 
             if item_ids.sum() > 0:
                 items = base_out[item_ids]
