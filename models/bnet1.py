@@ -51,12 +51,16 @@ class BranchNet1(nn.Module):
                 ids.append(item_ids)
 
         # organize outputs of each branch in a single output with correct input order
-        output = torch.empty(N, *outputs[0].shape[1:])
+        output = torch.empty(N, *outputs[0].shape[1:], device=self.device)
         for item_ids, out in zip(ids, outputs):
             output[item_ids] = out
         if return_id:
             return output, branch_ids
         return output
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
     def calc_estimation_loss(self, branch, x=None, base_out=None):
 

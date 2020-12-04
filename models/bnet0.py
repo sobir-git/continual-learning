@@ -48,12 +48,16 @@ class BranchNet0(nn.Module):
                 ids.append(item_ids)
 
         # organize outputs of each branch in a single output with correct input order
-        output = torch.empty(N, *outputs[0].shape[1:])
+        output = torch.empty(N, *outputs[0].shape[1:], device=self.device)
         for item_ids, out in zip(ids, outputs):
             output[item_ids] = out
         if return_id:
             return output, branch_ids
         return output
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
     def calc_estimation_loss(self, branch_idx, x=None, base_out=None):
 
@@ -105,7 +109,7 @@ class BranchNet0(nn.Module):
         for i in range(N):  # loop over all batch items
             # normalize actual losses into probabilities
             # probabilities are proportional to 1/estimated_loss
-            p = 1/a[i,:]
+            p = 1 / a[i, :]
             # normalize
             p = p / p.sum()
             _br_idx = np.random.choice(B, p=p)
@@ -122,6 +126,6 @@ class BranchNet0(nn.Module):
             item_ids = chosen_branches == i
             # get the classification loss for item ids at the chosen branch
             clf_loss += clf_losses[i][item_ids].sum()
-        loss = sum(lels)/B + clf_loss / N
+        loss = sum(lels) / B + clf_loss / N
         # loss = clf_loss / N
         return loss, [l.detach() for l in lels], (clf_loss / N).detach()

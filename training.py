@@ -87,6 +87,7 @@ class Trainer:
         criterion = torch.nn.CrossEntropyLoss().to(self.device)
         model.eval()
         losses, batch_time, accuracy = AverageMeter(), AverageMeter(), AverageMeter()
+        mask = to_device(mask, self.device)
 
         with torch.no_grad():
             start = time.time()
