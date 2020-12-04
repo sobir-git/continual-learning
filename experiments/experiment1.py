@@ -8,6 +8,7 @@ from utils import AverageMeter, get_logger, save_pretrained_model, load_pretrain
     get_default_device
 
 device = get_default_device()
+print(f'Running with device {device}')
 
 
 def exp1(opt):
