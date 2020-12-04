@@ -113,13 +113,7 @@ class BranchNet1(BranchNet):
         for i in range(N):  # loop over all batch items
             # normalize actual losses into probabilities
             # probabilities are proportional to 1/estimated_loss
-            _n_zeros = np.count_nonzero(a[i, :] == 0)
-            if _n_zeros > 0:
-                # help fix division by zero
-                self.logger.debug(f'Some branches({_n_zeros}) estimating zero losses: {a}')
-                a[i, :] += 2e-32
-
-            p = 1 / a[i,:]
+            p = 1 / a[i, :]
             # normalize
             p = p / p.sum()
             _br_idx = np.random.choice(B, p=p)

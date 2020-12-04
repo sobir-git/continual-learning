@@ -21,6 +21,8 @@ class LossEstimator(nn.Module):
     def forward(self, x):
         x = x.view(-1, np.prod(self.in_shape))
         out = self.layers(x)
+        # never estimate zero
+        out += 1e-8
         return out
 
 
