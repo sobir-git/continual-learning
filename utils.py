@@ -152,7 +152,7 @@ def to_device(data, device):
     return data.to(device, non_blocking=True)
 
 
-class DeviceDataLoader():
+class DeviceDataLoader:
     """Wrap a dataloader to move data to a device"""
 
     def __init__(self, dl, device):

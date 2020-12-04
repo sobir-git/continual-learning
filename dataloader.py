@@ -2,7 +2,7 @@
 Sourced from https://github.com/drimpossible/GDumb, with modifications
 '''
 import torch, torchvision
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.sampler import SubsetRandomSampler
 import random
 import numpy as np
@@ -18,7 +18,7 @@ class CIDataLoader:
     Note: The dataloaders that it provides for a particular set of classes, always have shuffle=True;
     """
 
-    def __init__(self, dataset, class_to_idx_mapping, **kwargs):
+    def __init__(self, dataset: Dataset, class_to_idx_mapping, **kwargs):
         self.dataset = dataset
         self.class_to_idx_mapping = class_to_idx_mapping
         self.kwargs = kwargs.copy()

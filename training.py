@@ -3,7 +3,6 @@ import time
 import numpy as np
 import torch
 
-import models.bnet
 import models.bnet_base
 from utils import AverageMeter, get_accuracy, to_device
 
