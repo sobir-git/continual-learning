@@ -4,14 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="99cf1a55-5846-4223-b2b9-e670969f833f" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/tree-networks.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+    <list default="true" id="99cf1a55-5846-4223-b2b9-e670969f833f" name="Default Changelist" comment="fixed some device stuff">
+      <change afterPath="$PROJECT_DIR$/models/bnet.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataloader.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataloader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/experiments/experiment1.py" beforeDir="false" afterPath="$PROJECT_DIR$/experiments/experiment1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/bnet0.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/bnet1.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/bnet1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/bnet_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/bnet_base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/other.py" beforeDir="false" afterPath="$PROJECT_DIR$/other.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/training.py" beforeDir="false" afterPath="$PROJECT_DIR$/training.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -159,12 +162,62 @@
       <workItem from="1606903315060" duration="44000" />
       <workItem from="1607106640985" duration="1198000" />
       <workItem from="1607107858821" duration="73000" />
-      <workItem from="1607107935034" duration="1757000" />
+      <workItem from="1607107935034" duration="6052000" />
     </task>
+    <task id="LOCAL-00001" summary="update .idea">
+      <created>1607109745822</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1607109745822</updated>
+    </task>
+    <task id="LOCAL-00002" summary="initial commit(1)">
+      <created>1607109870910</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1607109870910</updated>
+    </task>
+    <task id="LOCAL-00003" summary="added device message">
+      <created>1607111019343</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1607111019343</updated>
+    </task>
+    <task id="LOCAL-00004" summary="fixed some device stuff">
+      <created>1607111720706</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1607111720706</updated>
+    </task>
+    <task id="LOCAL-00005" summary="fixed some device stuff">
+      <created>1607112717593</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1607112717593</updated>
+    </task>
+    <task id="LOCAL-00006" summary="fixed some device stuff">
+      <created>1607113245097</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1607113245097</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="update .idea" />
+    <MESSAGE value="initial commit(1)" />
+    <MESSAGE value="added device message" />
+    <MESSAGE value="fixed some device stuff" />
+    <option name="LAST_COMMIT_MESSAGE" value="fixed some device stuff" />
   </component>
   <component name="WindowStateProjectService">
     <state x="168" y="37" width="1092" height="717" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1607109692169">
@@ -175,6 +228,14 @@
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="481" y="184" key="#com.intellij.fileTypes.FileTypeChooser/62.0.1304.768@62.0.1304.768" timestamp="1606890438295" />
+    <state x="413" y="129" key="#com.intellij.refactoring.safeDelete.UnsafeUsagesDialog" timestamp="1607113569481">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="413" y="129" key="#com.intellij.refactoring.safeDelete.UnsafeUsagesDialog/62.0.1304.768@62.0.1304.768" timestamp="1607113569481" />
+    <state x="457" y="247" key="#com.jetbrains.python.refactoring.move.PyMoveModuleMembersDialog" timestamp="1607113651592">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="457" y="247" key="#com.jetbrains.python.refactoring.move.PyMoveModuleMembersDialog/62.0.1304.768@62.0.1304.768" timestamp="1607113651592" />
     <state x="83" y="135" key="#xdebugger.XInspectDialog" timestamp="1606857292333">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
@@ -183,74 +244,82 @@
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="759" y="64" key="#xdebugger.evaluate/62.0.1304.768@62.0.1304.768" timestamp="1606843948666" />
-    <state x="308" y="0" key="CommitChangelistDialog2" timestamp="1607106823910">
+    <state x="308" y="0" width="883" height="768" key="CommitChangelistDialog2" timestamp="1607113633297">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="308" y="0" key="CommitChangelistDialog2/62.0.1304.768@62.0.1304.768" timestamp="1607106823910" />
+    <state x="308" y="0" width="883" height="768" key="CommitChangelistDialog2/62.0.1304.768@62.0.1304.768" timestamp="1607113633297" />
     <state width="835" height="438" key="DebuggerActiveHint" timestamp="1606822415048">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state width="835" height="438" key="DebuggerActiveHint/62.0.1304.768@62.0.1304.768" timestamp="1606822415047" />
+    <state x="153" y="57" width="1043" height="614" key="DiffContextDialog" timestamp="1607113146929">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="153" y="57" width="1043" height="614" key="DiffContextDialog/62.0.1304.768@62.0.1304.768" timestamp="1607113146929" />
     <state x="463" y="138" key="FileChooserDialogImpl" timestamp="1607109267502">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="463" y="138" key="FileChooserDialogImpl/62.0.1304.768@62.0.1304.768" timestamp="1607109267502" />
-    <state width="1322" height="334" key="GridCell.Tab.0.bottom" timestamp="1607109676095">
+    <state width="1322" height="294" key="GridCell.Tab.0.bottom" timestamp="1607113592480">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="334" key="GridCell.Tab.0.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607109676095" />
-    <state width="1322" height="334" key="GridCell.Tab.0.center" timestamp="1607109676094">
+    <state width="1322" height="294" key="GridCell.Tab.0.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607113592480" />
+    <state width="1322" height="294" key="GridCell.Tab.0.center" timestamp="1607113592480">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="334" key="GridCell.Tab.0.center/62.0.1304.768@62.0.1304.768" timestamp="1607109676094" />
-    <state width="1322" height="334" key="GridCell.Tab.0.left" timestamp="1607109676094">
+    <state width="1322" height="294" key="GridCell.Tab.0.center/62.0.1304.768@62.0.1304.768" timestamp="1607113592480" />
+    <state width="1322" height="294" key="GridCell.Tab.0.left" timestamp="1607113592480">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="334" key="GridCell.Tab.0.left/62.0.1304.768@62.0.1304.768" timestamp="1607109676094" />
-    <state width="1322" height="334" key="GridCell.Tab.0.right" timestamp="1607109676094">
+    <state width="1322" height="294" key="GridCell.Tab.0.left/62.0.1304.768@62.0.1304.768" timestamp="1607113592480" />
+    <state width="1322" height="294" key="GridCell.Tab.0.right" timestamp="1607113592480">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="334" key="GridCell.Tab.0.right/62.0.1304.768@62.0.1304.768" timestamp="1607109676094" />
-    <state width="1322" height="294" key="GridCell.Tab.1.bottom" timestamp="1607109622072">
+    <state width="1322" height="294" key="GridCell.Tab.0.right/62.0.1304.768@62.0.1304.768" timestamp="1607113592480" />
+    <state width="1322" height="294" key="GridCell.Tab.1.bottom" timestamp="1607113592480">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="294" key="GridCell.Tab.1.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607109622072" />
-    <state width="1322" height="294" key="GridCell.Tab.1.center" timestamp="1607109622072">
+    <state width="1322" height="294" key="GridCell.Tab.1.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607113592480" />
+    <state width="1322" height="294" key="GridCell.Tab.1.center" timestamp="1607113592480">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="294" key="GridCell.Tab.1.center/62.0.1304.768@62.0.1304.768" timestamp="1607109622072" />
-    <state width="1322" height="294" key="GridCell.Tab.1.left" timestamp="1607109622072">
+    <state width="1322" height="294" key="GridCell.Tab.1.center/62.0.1304.768@62.0.1304.768" timestamp="1607113592480" />
+    <state width="1322" height="294" key="GridCell.Tab.1.left" timestamp="1607113592480">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="294" key="GridCell.Tab.1.left/62.0.1304.768@62.0.1304.768" timestamp="1607109622072" />
-    <state width="1322" height="294" key="GridCell.Tab.1.right" timestamp="1607109622072">
+    <state width="1322" height="294" key="GridCell.Tab.1.left/62.0.1304.768@62.0.1304.768" timestamp="1607113592480" />
+    <state width="1322" height="294" key="GridCell.Tab.1.right" timestamp="1607113592480">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="294" key="GridCell.Tab.1.right/62.0.1304.768@62.0.1304.768" timestamp="1607109622072" />
+    <state width="1322" height="294" key="GridCell.Tab.1.right/62.0.1304.768@62.0.1304.768" timestamp="1607113592480" />
     <state x="215" y="14" key="SettingsEditor" timestamp="1607108360734">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="215" y="14" key="SettingsEditor/62.0.1304.768@62.0.1304.768" timestamp="1607108360734" />
+    <state x="275" y="102" key="Vcs.Push.Dialog.v2" timestamp="1607113614178">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="275" y="102" key="Vcs.Push.Dialog.v2/62.0.1304.768@62.0.1304.768" timestamp="1607113614178" />
     <state width="660" height="392" key="XDebugger.FullValuePopup" timestamp="1606771332982">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state width="660" height="392" key="XDebugger.FullValuePopup/62.0.1304.768@62.0.1304.768" timestamp="1606771332982" />
-    <state x="319" y="0" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser" timestamp="1606838117453">
+    <state x="319" y="0" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser" timestamp="1607111692900">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="319" y="0" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser/62.0.1304.768@62.0.1304.768" timestamp="1606838117453" />
+    <state x="319" y="0" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser/62.0.1304.768@62.0.1304.768" timestamp="1607111692900" />
     <state x="267" y="111" key="com.intellij.xdebugger.impl.breakpoints.ui.BreakpointsDialogFactory$2" timestamp="1606845767651">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="267" y="111" key="com.intellij.xdebugger.impl.breakpoints.ui.BreakpointsDialogFactory$2/62.0.1304.768@62.0.1304.768" timestamp="1606845767651" />
-    <state x="390" y="117" width="585" height="534" key="find.popup" timestamp="1607109134997">
+    <state x="390" y="117" width="585" height="596" key="find.popup" timestamp="1607112672474">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="390" y="117" width="585" height="534" key="find.popup/62.0.1304.768@62.0.1304.768" timestamp="1607109134997" />
-    <state x="377" y="89" width="672" height="678" key="search.everywhere.popup" timestamp="1607108041338">
+    <state x="390" y="117" width="585" height="596" key="find.popup/62.0.1304.768@62.0.1304.768" timestamp="1607112672474" />
+    <state x="377" y="89" width="672" height="678" key="search.everywhere.popup" timestamp="1607113026238">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="377" y="89" width="672" height="678" key="search.everywhere.popup/62.0.1304.768@62.0.1304.768" timestamp="1607108041338" />
+    <state x="377" y="89" width="672" height="678" key="search.everywhere.popup/62.0.1304.768@62.0.1304.768" timestamp="1607113026238" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

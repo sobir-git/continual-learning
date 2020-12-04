@@ -2,8 +2,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from models.bnet1 import BranchNet1
 from models.bnet_base import Branch, Flatten, Base
-from models.bnet0 import BranchNet0
 
 
 def new_branch0():
@@ -26,11 +26,11 @@ def new_branch1():
     ), in_shape=in_shape)
 
 
-def branchnet():
+def branchnet1():
     base = Base()
     branch0 = new_branch0()
     branch1 = new_branch1()
-    return BranchNet0(base, [branch0, branch1])
+    return BranchNet1(base, [branch0, branch1])
 
 
 def branchnet110():
@@ -38,7 +38,7 @@ def branchnet110():
     branch0 = new_branch0()
     branch10 = new_branch1()
     branch11 = new_branch1()
-    return BranchNet0(base, [branch0, branch10, branch11])
+    return BranchNet1(base, [branch0, branch10, branch11])
 
 
 def simple_model():
@@ -86,7 +86,7 @@ def simple_test(net, loader):
             outputs = net(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+            correct += torch.eq(predicted, labels).sum().item()
 
     print('Accuracy  %.2f %%' % (100 * correct / total))
 

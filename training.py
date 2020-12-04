@@ -3,7 +3,8 @@ import time
 import numpy as np
 import torch
 
-import models.bnet0
+import models.bnet
+import models.bnet_base
 from utils import AverageMeter, get_accuracy, to_device
 
 
@@ -29,7 +30,7 @@ class Trainer:
             In both cases either epoch number of phase number is given, just for the purpose of logging.
         """
 
-        is_bnet = isinstance(model, models.bnet0.BranchNet0)
+        is_bnet = isinstance(model, models.bnet_base.BranchNet)
 
         datasize = len(loader)
         log_every = max(np.ceil(datasize / 20), 1000)  # log every n batches

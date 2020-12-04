@@ -64,5 +64,5 @@ def exp1(opt):
 
 
 if __name__ == '__main__':
-    opt = parse_args()
-    exp1(opt)
+    cmd_opts = parse_args()
+    exp1(cmd_opts)

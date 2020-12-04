@@ -1,8 +1,6 @@
 '''
 Sourced from https://github.com/drimpossible/GDumb, with modifications
 '''
-import itertools
-
 import torch, torchvision
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -251,7 +249,7 @@ def get_augment_transforms(dataset, inp_sz):
     """
     Returns appropriate augmentation given dataset size and name
     Arguments:
-        indices (sequence): a sequence of indices
+        dataset (Dataset): Dataset
     """
     if inp_sz == 32 or inp_sz == 28 or inp_sz == 64:
         train_augment = [torchvision.transforms.RandomCrop(inp_sz, padding=4)]
@@ -270,7 +268,7 @@ def classwise_split(targets):
     """
     Returns a dictionary with classwise indices for any class key given labels array.
     Arguments:
-        indices (sequence): a sequence of indices
+        targets (sequence): a sequence of targets
     """
     targets = np.array(targets)
     indices = targets.argsort()

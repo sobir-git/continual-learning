@@ -6,10 +6,10 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from models.bnet_base import Branch, loss_estimation_loss
+from models.bnet_base import Branch, loss_estimation_loss, BranchNet
 
 
-class BranchNet1(nn.Module):
+class BranchNet1(BranchNet):
     clf_loss_detached_from_lels = True
 
     def __init__(self, base: nn.Module, branches: List[Branch]):

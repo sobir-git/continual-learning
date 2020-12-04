@@ -1,7 +1,4 @@
-import torch
-
-
-class AverageMeter():
+class AverageMeter:
     def __init__(self):
         self.n = 0
         self.sum = 0
