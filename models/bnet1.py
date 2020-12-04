@@ -109,6 +109,9 @@ class BranchNet1(BranchNet):
         a = np.hstack([i.detach().cpu().numpy().reshape(N, 1) for i in clf_losses])  # shape = (N, B)
         assert a.shape == (N, B), a.shape
 
+        # always be safe
+        a += 1e-16
+
         chosen_branches = []
         for i in range(N):  # loop over all batch items
             # normalize actual losses into probabilities
