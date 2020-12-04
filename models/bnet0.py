@@ -28,7 +28,7 @@ class BranchNet0(nn.Module):
 
         est_losses = [self.calc_estimation_loss(br_idx, base_out=base_out) for br_idx in range(B)]
         # choose a branch with minimum estimated loss for each batch item
-        po = np.hstack([e.detach().numpy().reshape(N, 1) for e in est_losses])  # shape (N, B)
+        po = np.hstack([e.detach().cpu().numpy().reshape(N, 1) for e in est_losses])  # shape (N, B)
         assert po.shape == (N, B), po.shape
 
         # from each row get argmin -> branch_idx
@@ -102,7 +102,7 @@ class BranchNet0(nn.Module):
             )
 
         # choose a branch randomly with probabilities of actual_loss
-        a = np.hstack([i.detach().numpy().reshape(N, 1) for i in clf_losses])  # shape = (N, B)
+        a = np.hstack([i.detach().cpu().numpy().reshape(N, 1) for i in clf_losses])  # shape = (N, B)
         assert a.shape == (N, B), a.shape
 
         chosen_branches = []
