@@ -32,7 +32,7 @@ class Trainer:
         is_bnet = isinstance(model, models.bnet_base.BranchNet)
 
         datasize = len(loader)
-        log_every = max(np.ceil(datasize / 20), 1000)  # log every n batches
+        log_every = min(np.ceil(datasize/3), max(np.ceil(datasize / 20), 1000))  # log every n batches
 
         model.train()
         loss_meter, data_time, batch_time = [AverageMeter() for _ in range(3)]
