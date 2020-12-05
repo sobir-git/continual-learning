@@ -2,18 +2,23 @@ import time
 
 import numpy as np
 import torch
+import wandb
 
 import models.bnet_base
 from utils import AverageMeter, get_accuracy, to_device
 
 
 class Trainer:
-    def __init__(self, opt, logger, device):
+    def __init__(self, opt, logger, device, tag=''):
         self.opt = opt
         self.logger = logger
         assert not opt.regularization == 'cutmix', "we cannot apply cutmix"
         self.default_criterion = torch.nn.CrossEntropyLoss().to(device)
         self.device = device
+        if tag:
+            self.tag = tag + '/'
+        else:
+            self.tag = ''
 
     def train(self, loader, optimizer, model, epoch=None, phase=None, branch_idx=None):
         assert epoch is None or epoch > 0
@@ -28,11 +33,12 @@ class Trainer:
 
             In both cases either epoch number of phase number is given, just for the purpose of logging.
         """
+        w_tag = self.tag + 'train/'
 
         is_bnet = isinstance(model, models.bnet_base.BranchNet)
 
         datasize = len(loader)
-        log_every = min(np.ceil(datasize/3), max(np.ceil(datasize / 20), 1000))  # log every n batches
+        log_every = min(np.ceil(datasize / 5), max(np.ceil(datasize / 20), 1000))  # log every n batches
 
         model.train()
         loss_meter, data_time, batch_time = [AverageMeter() for _ in range(3)]
@@ -71,8 +77,11 @@ class Trainer:
 
                 # print statistics
                 if i % log_every == 0:
+                    wandb.log({w_tag + 'loss': loss_meter.avg})
                     msg = f'[{epoch or phase}, {i / datasize * 100:.0f}%]\t loss: {loss_meter.avg:.3f}'
                     if is_bnet:
+                        wandb.log({w_tag + 'clf_loss': clf_loss_meter.avg})
+                        wandb.log({w_tag + 'lels': [l.avg for l in lel_meters]})
                         _formatted_lels = ''.join(['%.3f ' % l.avg for l in lel_meters])
                         msg += f'\t clf_loss: {clf_loss_meter.avg:.3f}\t lels: {_formatted_lels}'
                     self.logger.info(msg)
