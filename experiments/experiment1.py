@@ -1,6 +1,6 @@
 import torch
 
-import other
+import models.concrete.single
 from dataloader import VisionDataset
 from opts import parse_args
 from training import Trainer
@@ -8,17 +8,17 @@ from utils import AverageMeter, get_logger, save_pretrained_model, load_pretrain
     get_default_device
 
 device = get_default_device()
-print(f'Running with device {device}')
 
 
 def exp1(opt):
-    model = getattr(other, opt.model)().to(device)
+    model = getattr(models.concrete.single, opt.model)(opt).to(device)
     opt.exp_name += opt.model
     vd = VisionDataset(opt, class_order=list(range(10)))
 
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
     logger = get_logger(folder=opt.log_dir + '/' + opt.exp_name + '/')
+    logger.info(f'Running with device {device}')
     logger.info("==> Opts for this training: " + str(opt))
 
     trainer = Trainer(opt, logger, device=device)
@@ -47,7 +47,7 @@ def exp1(opt):
         # Class-Incremental training
         # We start with pretrain mask bvecause in testing we want pretrained classes included
         logger.info(f'==> Starting Class-Incremental training')
-        mask = vd.pretrain_mask if opt.num_pretrain_classes > 0 else torch.zeros(vd.n_classes_in_whole_dataset)
+        mask = vd.pretrain_mask.clone() if opt.num_pretrain_classes > 0 else torch.zeros(vd.n_classes_in_whole_dataset)
         dataloaders = vd.get_ci_dataloaders()
         cl_accuracy_meter = AverageMeter()
         for phase, (trainloader, testloader, class_list, phase_mask) in enumerate(dataloaders, start=1):
@@ -57,7 +57,7 @@ def exp1(opt):
             mask += phase_mask
 
             # this is the accuracy for all classes seen so far
-            acc = trainer.test(loader=testloader, model=model, mask=phase_mask, epoch_or_phase=phase)
+            acc = trainer.test(loader=testloader, model=model, mask=mask, epoch_or_phase=phase)
             cl_accuracy_meter.update(acc)
 
         logger.info(f'==> CL training completed! AverageAcc: [{cl_accuracy_meter.avg:.3f}]')

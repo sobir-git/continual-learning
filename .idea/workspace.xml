@@ -23,8 +23,23 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="99cf1a55-5846-4223-b2b9-e670969f833f" name="Default Changelist" comment="some cleaning">
+      <change afterPath="$PROJECT_DIR$/experiments/experiment2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/models/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/models/cifar10cnn.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/models/concrete/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/models/concrete/single.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/models/layers.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/common.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/test_bnet_base.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/test_cifar10cnn.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/test_layers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/tree-networks.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/tree-networks.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/bnet1.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/bnet1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataloader.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataloader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/experiments/experiment1.py" beforeDir="false" afterPath="$PROJECT_DIR$/experiments/experiment1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/bnet_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/bnet_base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/opts.py" beforeDir="false" afterPath="$PROJECT_DIR$/opts.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/other.py" beforeDir="false" afterPath="$PROJECT_DIR$/other.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/test_dataloader.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_dataloader.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -62,14 +77,15 @@
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyIntegratedToolsModulesConfigurable" />
   </component>
   <component name="RecentsManager">
-    <key name="MoveFile.RECENT_KEYS">
-      <recent name="C:\Users\Inspiron\PycharmProjects\tree-networks\experiments" />
-    </key>
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Inspiron\PycharmProjects\pythonProject1" />
     </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Inspiron\PycharmProjects\tree-networks\models\concrete" />
+      <recent name="C:\Users\Inspiron\PycharmProjects\tree-networks\experiments" />
+    </key>
   </component>
-  <component name="RunManager" selected="Python.experiment1-bnet">
+  <component name="RunManager" selected="Python.experiment1 single branch">
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <module name="pythonProject1" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -86,6 +102,44 @@
       <option name="SCRIPT_NAME" value="" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="cifar10cnn" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="tree-networks" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/models" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/models/cifar10cnn.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="experiment1 single branch" type="PythonConfigurationType" factoryName="Python">
+      <module name="tree-networks" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="C:\ProgramData\Anaconda3\envs\CL\python.exe" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/experiments/experiment1.py" />
+      <option name="PARAMETERS" value="--model single_branched --dataset CIFAR10 --data_dir ../data --num_pretrain_classes 2 --num_pretrain_passes 1 --num_tasks 1 --num_classes_per_task 1 --num_loops 1 --exp_name test" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
       <option name="REDIRECT_INPUT" value="false" />
@@ -130,7 +184,26 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="pytest for test_dataloader" type="tests" factoryName="py.test" temporary="true">
+    <configuration name="experiment2" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="tree-networks" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/experiments" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/experiments/experiment2.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest for tests.test_dataloader.test_get_ci_dataloaders" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
       <module name="tree-networks" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -143,18 +216,61 @@
       <option name="_new_keywords" value="&quot;&quot;" />
       <option name="_new_parameters" value="&quot;&quot;" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_dataloader&quot;" />
+      <option name="_new_target" value="&quot;tests.test_dataloader.test_get_ci_dataloaders&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest in test_cifar10cnn.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+      <module name="tree-networks" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/test_cifar10cnn.py&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest in test_dataloader.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+      <module name="tree-networks" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/test_dataloader.py&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
     <list>
       <item itemvalue="Python.experiment1" />
+      <item itemvalue="Python.experiment1 single branch" />
       <item itemvalue="Python.experiment1-bnet" />
-      <item itemvalue="Python tests.pytest for test_dataloader" />
+      <item itemvalue="Python.experiment2" />
+      <item itemvalue="Python.cifar10cnn" />
+      <item itemvalue="Python tests.pytest in test_cifar10cnn.py" />
+      <item itemvalue="Python tests.pytest for tests.test_dataloader.test_get_ci_dataloaders" />
+      <item itemvalue="Python tests.pytest in test_dataloader.py" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python tests.pytest for test_dataloader" />
+        <item itemvalue="Python tests.pytest in test_dataloader.py" />
+        <item itemvalue="Python tests.pytest for tests.test_dataloader.test_get_ci_dataloaders" />
+        <item itemvalue="Python.experiment2" />
+        <item itemvalue="Python.cifar10cnn" />
+        <item itemvalue="Python tests.pytest in test_cifar10cnn.py" />
       </list>
     </recent_temporary>
   </component>
@@ -174,7 +290,7 @@
       <workItem from="1606903315060" duration="44000" />
       <workItem from="1607106640985" duration="1198000" />
       <workItem from="1607107858821" duration="73000" />
-      <workItem from="1607107935034" duration="17368000" />
+      <workItem from="1607107935034" duration="44403000" />
     </task>
     <task id="LOCAL-00001" summary="update .idea">
       <created>1607109745822</created>
@@ -295,7 +411,14 @@
       <option name="project" value="LOCAL" />
       <updated>1607162981544</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="some cleaning">
+      <created>1607163379732</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1607163379732</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -324,15 +447,15 @@
     <MESSAGE value="prevent zero division, clf_losses += 1e-16" />
     <MESSAGE value="change log every" />
     <MESSAGE value="replaced Flatten by pytorch's own implementation" />
-    <MESSAGE value="some cleaning" />
     <MESSAGE value="LossEstimator outputs Softplus" />
-    <option name="LAST_COMMIT_MESSAGE" value="LossEstimator outputs Softplus" />
+    <MESSAGE value="some cleaning" />
+    <option name="LAST_COMMIT_MESSAGE" value="some cleaning" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="168" y="37" width="1092" height="717" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1607121026163">
+    <state x="168" y="27" width="1092" height="741" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1607191713398">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="168" y="37" width="1092" height="717" key="#com.intellij.execution.impl.EditConfigurationsDialog/62.0.1304.768@62.0.1304.768" timestamp="1607121026163" />
+    <state x="168" y="27" width="1092" height="741" key="#com.intellij.execution.impl.EditConfigurationsDialog/62.0.1304.768@62.0.1304.768" timestamp="1607191713398" />
     <state x="481" y="184" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1606890438295">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
@@ -341,82 +464,118 @@
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="413" y="129" key="#com.intellij.refactoring.safeDelete.UnsafeUsagesDialog/62.0.1304.768@62.0.1304.768" timestamp="1607113569481" />
-    <state x="457" y="247" key="#com.jetbrains.python.refactoring.move.PyMoveModuleMembersDialog" timestamp="1607113651592">
+    <state x="457" y="247" key="#com.jetbrains.python.refactoring.move.PyMoveModuleMembersDialog" timestamp="1607187255250">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="457" y="247" key="#com.jetbrains.python.refactoring.move.PyMoveModuleMembersDialog/62.0.1304.768@62.0.1304.768" timestamp="1607113651592" />
+    <state x="457" y="247" key="#com.jetbrains.python.refactoring.move.PyMoveModuleMembersDialog/62.0.1304.768@62.0.1304.768" timestamp="1607187255250" />
     <state x="83" y="135" key="#xdebugger.XInspectDialog" timestamp="1606857292333">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="83" y="135" key="#xdebugger.XInspectDialog/62.0.1304.768@62.0.1304.768" timestamp="1606857292333" />
-    <state x="614" y="171" key="#xdebugger.evaluate" timestamp="1607121537428">
+    <state x="589" y="175" key="#xdebugger.evaluate" timestamp="1607190355723">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="614" y="171" key="#xdebugger.evaluate/62.0.1304.768@62.0.1304.768" timestamp="1607121537428" />
+    <state x="589" y="175" key="#xdebugger.evaluate/62.0.1304.768@62.0.1304.768" timestamp="1607190355723" />
     <state x="430" y="237" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1607114236541">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="430" y="237" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/62.0.1304.768@62.0.1304.768" timestamp="1607114236541" />
-    <state x="227" y="0" width="883" height="768" key="CommitChangelistDialog2" timestamp="1607162981170">
+    <state x="227" y="0" width="883" height="768" key="CommitChangelistDialog2" timestamp="1607187298934">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="227" y="0" width="883" height="768" key="CommitChangelistDialog2/62.0.1304.768@62.0.1304.768" timestamp="1607162981170" />
+    <state x="227" y="0" width="883" height="768" key="CommitChangelistDialog2/62.0.1304.768@62.0.1304.768" timestamp="1607187298934" />
     <state width="835" height="438" key="DebuggerActiveHint" timestamp="1606822415048">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state width="835" height="438" key="DebuggerActiveHint/62.0.1304.768@62.0.1304.768" timestamp="1606822415047" />
-    <state x="153" y="57" width="1043" height="614" key="DiffContextDialog" timestamp="1607160192727">
+    <state x="153" y="57" width="1043" height="614" key="DiffContextDialog" timestamp="1607171173063">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="153" y="57" width="1043" height="614" key="DiffContextDialog/62.0.1304.768@62.0.1304.768" timestamp="1607160192727" />
-    <state x="463" y="138" key="FileChooserDialogImpl" timestamp="1607109267502">
+    <state x="153" y="57" width="1043" height="614" key="DiffContextDialog/62.0.1304.768@62.0.1304.768" timestamp="1607171173063" />
+    <state x="463" y="138" key="FileChooserDialogImpl" timestamp="1607186996409">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="463" y="138" key="FileChooserDialogImpl/62.0.1304.768@62.0.1304.768" timestamp="1607109267502" />
-    <state width="1322" height="233" key="GridCell.Tab.0.bottom" timestamp="1607148247591">
+    <state x="463" y="138" key="FileChooserDialogImpl/62.0.1304.768@62.0.1304.768" timestamp="1607186996409" />
+    <state width="1231" height="287" key="GridCell.Tab.-1.bottom" timestamp="1607190734184">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="233" key="GridCell.Tab.0.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607148247591" />
-    <state width="1322" height="233" key="GridCell.Tab.0.center" timestamp="1607148247591">
+    <state width="1231" height="287" key="GridCell.Tab.-1.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607190734184" />
+    <state width="1231" height="287" key="GridCell.Tab.-1.center" timestamp="1607190734184">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="233" key="GridCell.Tab.0.center/62.0.1304.768@62.0.1304.768" timestamp="1607148247591" />
-    <state width="1322" height="233" key="GridCell.Tab.0.left" timestamp="1607148247591">
+    <state width="1231" height="287" key="GridCell.Tab.-1.center/62.0.1304.768@62.0.1304.768" timestamp="1607190734184" />
+    <state width="1231" height="287" key="GridCell.Tab.-1.left" timestamp="1607190734184">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="233" key="GridCell.Tab.0.left/62.0.1304.768@62.0.1304.768" timestamp="1607148247591" />
-    <state width="1322" height="233" key="GridCell.Tab.0.right" timestamp="1607148247591">
+    <state width="1231" height="287" key="GridCell.Tab.-1.left/62.0.1304.768@62.0.1304.768" timestamp="1607190734184" />
+    <state width="1231" height="287" key="GridCell.Tab.-1.right" timestamp="1607190734184">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="233" key="GridCell.Tab.0.right/62.0.1304.768@62.0.1304.768" timestamp="1607148247591" />
-    <state width="1322" height="233" key="GridCell.Tab.1.bottom" timestamp="1607148247591">
+    <state width="1231" height="287" key="GridCell.Tab.-1.right/62.0.1304.768@62.0.1304.768" timestamp="1607190734184" />
+    <state width="1260" height="266" key="GridCell.Tab.0.bottom" timestamp="1607193379746">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="233" key="GridCell.Tab.1.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607148247591" />
-    <state width="1322" height="233" key="GridCell.Tab.1.center" timestamp="1607148247591">
+    <state width="1260" height="266" key="GridCell.Tab.0.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607193379746" />
+    <state width="1260" height="266" key="GridCell.Tab.0.center" timestamp="1607193379746">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="233" key="GridCell.Tab.1.center/62.0.1304.768@62.0.1304.768" timestamp="1607148247591" />
-    <state width="1322" height="233" key="GridCell.Tab.1.left" timestamp="1607148247591">
+    <state width="1260" height="266" key="GridCell.Tab.0.center/62.0.1304.768@62.0.1304.768" timestamp="1607193379746" />
+    <state width="1260" height="266" key="GridCell.Tab.0.left" timestamp="1607193379746">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="233" key="GridCell.Tab.1.left/62.0.1304.768@62.0.1304.768" timestamp="1607148247591" />
-    <state width="1322" height="233" key="GridCell.Tab.1.right" timestamp="1607148247591">
+    <state width="1260" height="266" key="GridCell.Tab.0.left/62.0.1304.768@62.0.1304.768" timestamp="1607193379746" />
+    <state width="1260" height="266" key="GridCell.Tab.0.right" timestamp="1607193379746">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="1322" height="233" key="GridCell.Tab.1.right/62.0.1304.768@62.0.1304.768" timestamp="1607148247591" />
-    <state x="215" y="14" key="SettingsEditor" timestamp="1607108360734">
+    <state width="1260" height="266" key="GridCell.Tab.0.right/62.0.1304.768@62.0.1304.768" timestamp="1607193379746" />
+    <state width="1260" height="266" key="GridCell.Tab.1.bottom" timestamp="1607193379657">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="215" y="14" key="SettingsEditor/62.0.1304.768@62.0.1304.768" timestamp="1607108360734" />
-    <state x="275" y="102" key="Vcs.Push.Dialog.v2" timestamp="1607122941631">
+    <state width="1260" height="266" key="GridCell.Tab.1.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607193379657" />
+    <state width="1260" height="266" key="GridCell.Tab.1.center" timestamp="1607193379657">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="275" y="102" key="Vcs.Push.Dialog.v2/62.0.1304.768@62.0.1304.768" timestamp="1607122941631" />
-    <state width="660" height="392" key="XDebugger.FullValuePopup" timestamp="1606771332982">
+    <state width="1260" height="266" key="GridCell.Tab.1.center/62.0.1304.768@62.0.1304.768" timestamp="1607193379657" />
+    <state width="1260" height="266" key="GridCell.Tab.1.left" timestamp="1607193379657">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state width="660" height="392" key="XDebugger.FullValuePopup/62.0.1304.768@62.0.1304.768" timestamp="1606771332982" />
+    <state width="1260" height="266" key="GridCell.Tab.1.left/62.0.1304.768@62.0.1304.768" timestamp="1607193379657" />
+    <state width="1260" height="266" key="GridCell.Tab.1.right" timestamp="1607193379657">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state width="1260" height="266" key="GridCell.Tab.1.right/62.0.1304.768@62.0.1304.768" timestamp="1607193379657" />
+    <state width="1231" height="287" key="GridCell.Tab.2.bottom" timestamp="1607190519613">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state width="1231" height="287" key="GridCell.Tab.2.bottom/62.0.1304.768@62.0.1304.768" timestamp="1607190519613" />
+    <state width="1231" height="287" key="GridCell.Tab.2.center" timestamp="1607190519613">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state width="1231" height="287" key="GridCell.Tab.2.center/62.0.1304.768@62.0.1304.768" timestamp="1607190519613" />
+    <state width="1231" height="287" key="GridCell.Tab.2.left" timestamp="1607190519612">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state width="1231" height="287" key="GridCell.Tab.2.left/62.0.1304.768@62.0.1304.768" timestamp="1607190519612" />
+    <state width="1231" height="287" key="GridCell.Tab.2.right" timestamp="1607190519613">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state width="1231" height="287" key="GridCell.Tab.2.right/62.0.1304.768@62.0.1304.768" timestamp="1607190519613" />
+    <state x="449" y="85" key="RollbackChangesDialog" timestamp="1607171174953">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="449" y="85" key="RollbackChangesDialog/62.0.1304.768@62.0.1304.768" timestamp="1607171174953" />
+    <state x="215" y="14" key="SettingsEditor" timestamp="1607189748616">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="215" y="14" key="SettingsEditor/62.0.1304.768@62.0.1304.768" timestamp="1607189748616" />
+    <state x="275" y="102" key="Vcs.Push.Dialog.v2" timestamp="1607163382606">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="275" y="102" key="Vcs.Push.Dialog.v2/62.0.1304.768@62.0.1304.768" timestamp="1607163382606" />
+    <state width="660" height="392" key="XDebugger.FullValuePopup" timestamp="1607177472950">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state width="660" height="392" key="XDebugger.FullValuePopup/62.0.1304.768@62.0.1304.768" timestamp="1607177472950" />
     <state x="319" y="0" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser" timestamp="1607111692900">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
@@ -425,14 +584,22 @@
       <screen x="62" y="0" width="1304" height="768" />
     </state>
     <state x="267" y="111" key="com.intellij.xdebugger.impl.breakpoints.ui.BreakpointsDialogFactory$2/62.0.1304.768@62.0.1304.768" timestamp="1606845767651" />
-    <state x="390" y="117" width="585" height="596" key="find.popup" timestamp="1607160081658">
+    <state x="62" y="54" width="1247" height="326" key="dock-window-1" timestamp="1607190910676">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="390" y="117" width="585" height="596" key="find.popup/62.0.1304.768@62.0.1304.768" timestamp="1607160081658" />
-    <state x="377" y="89" width="672" height="678" key="search.everywhere.popup" timestamp="1607114227997">
+    <state x="62" y="54" width="1247" height="326" key="dock-window-1/62.0.1304.768@62.0.1304.768" timestamp="1607190910676" />
+    <state x="559" y="329" width="1247" height="326" key="dock-window-2" timestamp="1607190910676">
       <screen x="62" y="0" width="1304" height="768" />
     </state>
-    <state x="377" y="89" width="672" height="678" key="search.everywhere.popup/62.0.1304.768@62.0.1304.768" timestamp="1607114227997" />
+    <state x="559" y="329" width="1247" height="326" key="dock-window-2/62.0.1304.768@62.0.1304.768" timestamp="1607190910676" />
+    <state x="390" y="117" width="585" height="596" key="find.popup" timestamp="1607172872190">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="390" y="117" width="585" height="596" key="find.popup/62.0.1304.768@62.0.1304.768" timestamp="1607172872190" />
+    <state x="377" y="89" width="672" height="678" key="search.everywhere.popup" timestamp="1607187452404">
+      <screen x="62" y="0" width="1304" height="768" />
+    </state>
+    <state x="377" y="89" width="672" height="678" key="search.everywhere.popup/62.0.1304.768@62.0.1304.768" timestamp="1607187452404" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -446,12 +613,25 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/tree_networks$pytest_in_test_dataloader_py.coverage" NAME="pytest in test_dataloader.py Coverage Results" MODIFIED="1607108697788" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
-    <SUITE FILE_PATH="coverage/tree_networks$experiment1.coverage" NAME="experiment1 Coverage Results" MODIFIED="1607109479627" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/" />
-    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_dataloader_test__gen_cl_mapping.coverage" NAME="pytest for test_dataloader.test__gen_cl_mapping Coverage Results" MODIFIED="1607108782258" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_in_test_dataloader_py.coverage" NAME="pytest in test_dataloader.py Coverage Results" MODIFIED="1607193353866" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_cifar10cnn_test_forward.coverage" NAME="pytest for test_cifar10cnn.test_forward Coverage Results" MODIFIED="1607173666709" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_cifar10cnn_test_indirect.coverage" NAME="pytest for test_cifar10cnn.test_indirect Coverage Results" MODIFIED="1607168989143" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/tree_networks$experiment1_single_branch.coverage" NAME="experiment1 single branch Coverage Results" MODIFIED="1607193379619" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/" />
+    <SUITE FILE_PATH="coverage/tree_networks$cifar10cnn.coverage" NAME="cifar10cnn Coverage Results" MODIFIED="1607170856800" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/models" />
     <SUITE FILE_PATH="coverage/tree_networks$test_dataloader.coverage" NAME="test_dataloader Coverage Results" MODIFIED="1607108414703" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_in_tests.coverage" NAME="pytest in tests Coverage Results" MODIFIED="1607178640187" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_in_test_test_py.coverage" NAME="pytest in test_test.py Coverage Results" MODIFIED="1607168341569" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/.trash" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_in_test_cifar10cnn_py.coverage" NAME="pytest in test_cifar10cnn.py Coverage Results" MODIFIED="1607182775050" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_tests_test_dataloader_test_get_ci_dataloaders.coverage" NAME="pytest for tests.test_dataloader.test_get_ci_dataloaders Coverage Results" MODIFIED="1607191042067" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tree_networks$experiment1.coverage" NAME="experiment1 Coverage Results" MODIFIED="1607191073222" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_test_test_square.coverage" NAME="pytest for test_test.test_square Coverage Results" MODIFIED="1607168061868" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/.trash" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_cifar10cnn_test_dataloader.coverage" NAME="pytest for test_cifar10cnn.test_dataloader Coverage Results" MODIFIED="1607170139585" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_dataloader_test__gen_cl_mapping.coverage" NAME="pytest for test_dataloader.test__gen_cl_mapping Coverage Results" MODIFIED="1607108782258" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
     <SUITE FILE_PATH="coverage/tree_networks$experiment1_bnet.coverage" NAME="experiment1-bnet Coverage Results" MODIFIED="1607121675961" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/" />
-    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_dataloader1_test__get_loader.coverage" NAME="pytest for test_dataloader Coverage Results" MODIFIED="1607109194664" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_tests_test_bnet_base_TestLossEstimator.coverage" NAME="pytest for tests.test_bnet_base.TestLossEstimator Coverage Results" MODIFIED="1607177826976" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_layers_test_conv_block.coverage" NAME="pytest for test_layers.test_conv_block Coverage Results" MODIFIED="1607178557740" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_dataloader1_test__get_loader.coverage" NAME="pytest for test_dataloader Coverage Results" MODIFIED="1607167059035" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_layers_test_fcblock.coverage" NAME="pytest for test_layers.test_fcblock Coverage Results" MODIFIED="1607177817003" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
     <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_dataloader_test_get_ci_dataloaders.coverage" NAME="pytest for test_dataloader.test_get_ci_dataloaders Coverage Results" MODIFIED="1607108790502" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
     <SUITE FILE_PATH="coverage/tree_networks$pytest_for_test_dataloader_test_init.coverage" NAME="pytest for test_dataloader.test_init Coverage Results" MODIFIED="1607108574993" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
   </component>

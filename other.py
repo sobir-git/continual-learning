@@ -3,13 +3,14 @@ from torch import nn
 from torch.nn import functional as F
 
 from models.bnet1 import BranchNet1
-from models.bnet_base import Branch, Flatten, Base
+from models.bnet_base import Branch, Base
+from models.cifar10cnn import Cifar10Cnn
 
 
 def new_branch0():
     in_shape = (16, 5, 5)
     return Branch(nn.Sequential(
-        Flatten(),
+        torch.nn.Flatten(),
         nn.Linear(16 * 5 * 5, 120),
         nn.ReLU(),
         nn.Linear(120, 84),
@@ -21,7 +22,7 @@ def new_branch0():
 def new_branch1():
     in_shape = (16, 5, 5)
     return Branch(nn.Sequential(
-        Flatten(),
+        torch.nn.Flatten(),
         nn.Linear(16 * 5 * 5, 10)
     ), in_shape=in_shape)
 
@@ -111,34 +112,5 @@ class SimpleNet(nn.Module):
         return x
 
 
-class Cifar10CnnModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),  # output: 64 x 16 x 16
-
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),  # output: 128 x 8 x 8
-
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),  # output: 256 x 4 x 4
-
-            nn.Flatten(),
-            nn.Linear(256 * 4 * 4, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Linear(512, 10))
-
-    def forward(self, xb):
-        return self.network(xb)
+if __name__ == '__main__':
+    pass

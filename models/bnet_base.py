@@ -3,33 +3,31 @@ import torch.nn.functional as F
 from torch import nn
 import numpy as np
 
+from models.layers import FCBlock
+
 
 class LossEstimator(nn.Module):
-    def __init__(self, in_shape, hidden_layers=None):
+    def __init__(self, opt, in_shape, hidden_layers=None):
         super(LossEstimator, self).__init__()
         layers = [torch.nn.Flatten()]
         self.in_shape = in_shape
         in_size = np.prod(in_shape)
         if hidden_layers:
-            for size in hidden_layers:
-                layers.append(nn.Linear(in_size, size))
-                layers.append(nn.ReLU())
-                in_size = size
-        layers.append(nn.Linear(in_size, 1))
+            layers.append(FCBlock(in_size, *hidden_layers, bn=opt.bn))
+        layers.append(nn.Linear(hidden_layers[-1] if hidden_layers else in_size, 1))
         layers.append(nn.Softplus())
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
-        x = x.view(-1, np.prod(self.in_shape))
         out = self.layers(x)
         return out
 
 
 class Branch(nn.Module):
-    def __init__(self, stem: nn.Module, in_shape):
+    def __init__(self, opt, stem: nn.Module, in_shape):
         super(Branch, self).__init__()
         self.stem = stem
-        self.le = LossEstimator(in_shape=in_shape)
+        self.le = LossEstimator(opt, in_shape=in_shape)
 
     def estimate_loss(self, x) -> torch.Tensor:
         return self.le(x)

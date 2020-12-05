@@ -51,11 +51,7 @@ def parse_args(args=None):
     parser.add_argument('--pooltype', type=str, default='MaxPool2d',
                         choices=['MaxPool2d', 'AvgPool2d', 'adaptive_max_pool2d', 'adaptive_avg_pool2d'],
                         help='Pooling types')
-    # parser.add_argument('--normtype', type=str, default='BatchNorm', choices=['BatchNorm', 'InstanceNorm'],
-    #                     help='Batch normalization types')
-    # parser.add_argument('--preact', action="store_true",
-    #                     help='Places norms and activations before linear/conv layer. Set to False by default')
-    # parser.add_argument('--bn', action="store_false", help='Apply Batchnorm. Set to True by default')
+    parser.add_argument('--bn', action="store_false", help='Apply Batchnorm. Set to True by default')
     # parser.add_argument('--affine_bn', action="store_false",
     #                     help='Apply affine transform in BN. Set to True by default')
     # parser.add_argument('--bn_eps', type=float, default=1e-6, help='Affine transform for batch norm')
