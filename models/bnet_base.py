@@ -7,7 +7,7 @@ import numpy as np
 class LossEstimator(nn.Module):
     def __init__(self, in_shape, hidden_layers=None):
         super(LossEstimator, self).__init__()
-        layers = [Flatten()]
+        layers = [torch.nn.Flatten()]
         self.in_shape = in_shape
         in_size = np.prod(in_shape)
         if hidden_layers:
@@ -61,18 +61,6 @@ class Base(nn.Module):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         return x
-
-
-class Flatten(nn.Module):
-    def forward(self, input):
-        """
-        Note that input.size(0) is usually the batch size.
-        So what it does is that given any input with input.size(0) # of batches,
-        will flatten to be 1 * nb_elements.
-        """
-        batch_size = input.size(0)
-        out = input.view(batch_size, -1)
-        return out  # (batch_size, *size)
 
 
 class BranchNet(nn.Module):
