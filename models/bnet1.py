@@ -29,7 +29,7 @@ class BranchNet1(BranchNet):
             else:
                 return out
 
-        est_losses = [self.calc_estimation_loss(br, base_out=base_out) for br in self.branches]
+        est_losses = [self.calc_estimated_losses(br, base_out=base_out) for br in self.branches]
         # choose a branch with minimum estimated loss for each batch item
         po = torch.hstack([e.view(N, 1) for e in est_losses])  # shape (N, B)
         assert po.shape == (N, B), po.shape
@@ -62,7 +62,7 @@ class BranchNet1(BranchNet):
     def device(self):
         return next(self.parameters()).device
 
-    def calc_estimation_loss(self, branch, x=None, base_out=None):
+    def calc_estimated_losses(self, branch, x=None, base_out=None):
 
         if (x is None) and (base_out is None):
             raise ValueError('x and base_out both absent')
@@ -82,6 +82,8 @@ class BranchNet1(BranchNet):
         B = len(self.branches)
 
         base_out = self.base(x)
+
+        # if a specific branch is given, just forward all data to it and get clf_loss
         if branch_idx is not None:
             br_out = self.branches[branch_idx](base_out)
             clf_loss = F.nll_loss(F.log_softmax(br_out, dim=1), y)
@@ -98,11 +100,13 @@ class BranchNet1(BranchNet):
             clf_losses.append(clf_loss)
 
             # loss_estimation_loss averaged for each sample
-            est_loss = self.calc_estimation_loss(branch=br, base_out=base_out)
+            est_loss = self.calc_estimated_losses(branch=br, base_out=base_out)
             if self.clf_loss_detached_from_lels:
-                clf_loss = clf_loss.detach()  # this in fact returning a new tensor detached from the graph
+                _clf_loss = clf_loss.detach()  # this in fact returning a new tensor detached from the graph
+            else:
+                _clf_loss = clf_loss
             lels.append(
-                loss_estimation_loss(est_loss, clf_loss, reduction='mean')
+                loss_estimation_loss(est_loss, _clf_loss, reduction='mean')
             )
 
         # choose a branch randomly with probabilities of actual_loss
@@ -115,7 +119,7 @@ class BranchNet1(BranchNet):
         chosen_branches = []
         for i in range(N):  # loop over all batch items
             # normalize actual losses into probabilities
-            # probabilities are proportional to 1/estimated_loss
+            # probabilities are proportional to 1/clf_losses
             p = 1 / a[i, :]
             # normalize
             p = p / p.sum()
