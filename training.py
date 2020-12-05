@@ -81,7 +81,8 @@ class Trainer:
                     msg = f'[{epoch or phase}, {i / datasize * 100:.0f}%]\t loss: {loss_meter.avg:.3f}'
                     if is_bnet:
                         wandb.log({w_tag + 'clf_loss': clf_loss_meter.avg})
-                        wandb.log({w_tag + 'lels': [l.avg for l in lel_meters]})
+                        for j, lm in enumerate(lel_meters):
+                            wandb.log({w_tag + 'lel' + str(j): lm.avg})
                         _formatted_lels = ''.join(['%.3f ' % l.avg for l in lel_meters])
                         msg += f'\t clf_loss: {clf_loss_meter.avg:.3f}\t lels: {_formatted_lels}'
                     self.logger.info(msg)
@@ -93,6 +94,8 @@ class Trainer:
 
     def test(self, loader, model, mask, epoch_or_phase):
         """Tests the model and return the accuracy"""
+        w_tag = self.tag + 'test/'
+
         criterion = torch.nn.CrossEntropyLoss().to(self.device)
         model.eval()
         losses, batch_time, accuracy = AverageMeter(), AverageMeter(), AverageMeter()
@@ -114,6 +117,8 @@ class Trainer:
                 batch_time.update(time.time() - start)
                 start = time.time()
 
+        wandb.log({w_tag + 'loss': losses.avg})
+        wandb.log({w_tag + 'acc': accuracy.avg})
         self.logger.info(
             f'==> Test [{epoch_or_phase}]:\tTime:{batch_time.sum:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
         return accuracy.avg

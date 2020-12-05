@@ -15,7 +15,9 @@ def exp1(opt):
     model = getattr(models.concrete.single, opt.model)(opt).to(device)
     wandb.watch(model)
     opt.exp_name += opt.model
-    vd = VisionDataset(opt, class_order=list(range(10)))
+    class_order = list(range(10))
+    wandb.config.update({'class_order': class_order})
+    vd = VisionDataset(opt, class_order=class_order)
 
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
@@ -40,7 +42,6 @@ def exp1(opt):
             for epoch in range(1, opt.num_pretrain_passes + 1):
                 trainer.train(loader=vd.pretrain_loader, model=model, optimizer=optimizer, epoch=epoch)
                 acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, epoch_or_phase=epoch)
-                wandb.log({'pretrain_acc': acc})
             wandb.summary['pretrain_acc'] = acc
             logger.info(f'==> Pretraining completed! Acc: [{acc:.3f}]')
             save_pretrained_model(opt, model)
@@ -62,7 +63,6 @@ def exp1(opt):
 
             # this is the accuracy for all classes seen so far
             acc = trainer.test(loader=testloader, model=model, mask=mask, epoch_or_phase=phase)
-            wandb.log({'cl_accuracy': acc})
             cl_accuracy_meter.update(acc)
         wandb.summary['cl_average_accuracy'] = cl_accuracy_meter.avg
         logger.info(f'==> CL training completed! AverageAcc: [{cl_accuracy_meter.avg:.3f}]')
