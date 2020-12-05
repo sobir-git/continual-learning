@@ -16,13 +16,12 @@ class LossEstimator(nn.Module):
                 layers.append(nn.ReLU())
                 in_size = size
         layers.append(nn.Linear(in_size, 1))
+        layers.append(nn.Softplus())
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
         x = x.view(-1, np.prod(self.in_shape))
         out = self.layers(x)
-        # never estimate zero
-        out += 1e-8
         return out
 
 
