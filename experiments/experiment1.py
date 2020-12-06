@@ -28,7 +28,7 @@ def exp1(opt):
 
     # pretraining
     if opt.num_pretrain_classes > 0:
-        trainer = Trainer(opt, logger, device=device, tag='pre')
+        trainer = Trainer(opt, logger, device=device, type='pre')
         try:
             logger.info('Trying to load pretrained model...')
             model = load_pretrained_model(opt, model, logger)
@@ -41,8 +41,8 @@ def exp1(opt):
             assert opt.num_pretrain_passes > 0
             logger.info(f'==> Starting pretraining')
             for epoch in range(1, opt.num_pretrain_passes + 1):
-                trainer.train(loader=vd.pretrain_loader, model=model, optimizer=optimizer, epoch=epoch)
-                acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, phase=epoch)
+                trainer.train(loader=vd.pretrain_loader, model=model, optimizer=optimizer, step=epoch)
+                acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, step=epoch)
             logger.info(f'==> Pretraining completed! Acc: [{acc:.3f}]')
             save_pretrained_model(opt, model)
 
@@ -50,19 +50,19 @@ def exp1(opt):
         # TODO: use another optimizer?
         # Class-Incremental training
         # We start with pretrain mask bvecause in testing we want pretrained classes included
-        trainer = Trainer(opt, logger, device=device, tag='cl')
+        trainer = Trainer(opt, logger, device=device, type='cl')
         logger.info(f'==> Starting Class-Incremental training')
         mask = vd.pretrain_mask.clone() if opt.num_pretrain_classes > 0 else torch.zeros(vd.n_classes_in_whole_dataset)
         dataloaders = vd.get_ci_dataloaders()
         cl_accuracy_meter = AverageMeter()
         for phase, (trainloader, testloader, class_list, phase_mask) in enumerate(dataloaders, start=1):
-            trainer.train(loader=trainloader, model=model, optimizer=optimizer, phase=phase)
+            trainer.train(loader=trainloader, model=model, optimizer=optimizer, step=phase)
 
             # accumulate masks, because we want to test on all seen classes
             mask += phase_mask
 
             # this is the accuracy for all classes seen so far
-            acc = trainer.test(loader=testloader, model=model, mask=mask, phase=phase)
+            acc = trainer.test(loader=testloader, model=model, mask=mask, step=phase)
             cl_accuracy_meter.update(acc)
         logger.info(f'==> CL training completed! AverageAcc: [{cl_accuracy_meter.avg:.3f}]')
 

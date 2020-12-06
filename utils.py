@@ -35,6 +35,7 @@ class Timer(object):
         self._start = time()
         assert not self._running, "Timer is already running"
         self._running = True
+        return self
 
     def finish(self):
         self._values.append(time() - self._start)

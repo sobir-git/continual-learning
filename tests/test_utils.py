@@ -4,7 +4,7 @@ from utils import Timer
 
 class TestTimer:
     times = [0.001, 0.01, 0.1, 0.5, 1]
-    _eps = 0.001
+    _eps = 0.002
 
     def almost_equal(self, a, b):
         return abs(a - b) < self._eps

@@ -1,5 +1,4 @@
-import time
-from typing import Iterator, Dict
+from typing import Dict
 
 import numpy as np
 import torch
@@ -13,22 +12,20 @@ from utils import AverageMeter, get_accuracy, to_device, Timer
 class Trainer:
     _default_criterion = torch.nn.CrossEntropyLoss()
 
-    def __init__(self, opt, logger, device, tag='', criterion=None):
+    def __init__(self, opt, logger, device, type, criterion=None):
         self.opt = opt
         self.logger = logger
+        self.type = type
         assert not opt.regularization == 'cutmix', "we cannot apply cutmix"
         self.device = device
         self.criterion = (criterion if criterion else self._default_criterion).to(device)
-        if tag:
-            self.tag = tag + '/'
+        if type in ['cl', 'pre']:
+            self._tag = type + '/'
+            self._step_name = 'epoch' if type == 'pre' else 'phase'
         else:
-            self.tag = ''
+            raise ValueError('Type should be on of cl or pre')
 
-    def train(self, loader: DataLoader, optimizer, model, epoch=None, phase=None, branch_idx=None):
-        assert epoch is None or epoch > 0
-        assert phase is None or phase > 0
-        assert epoch or phase
-
+    def train(self, loader: DataLoader, optimizer, model, step, branch_idx=None):
         """
         This trains either:
             - one epoch for pretraining
@@ -37,7 +34,7 @@ class Trainer:
 
             In both cases either epoch number of phase number is given, just for the purpose of logging.
         """
-        w_tag = self.tag + 'train/'
+        w_tag = self._tag + 'train/'  # tag to preprend wandb metric name
         is_bnet = isinstance(model, models.bnet_base.BranchNet)
         datasize = len(loader)
         log_every = min(np.ceil(datasize / 5), max(np.ceil(datasize / 20), 1000))  # log every n batches
@@ -82,13 +79,12 @@ class Trainer:
                 for j in range(len(lels)):
                     metrics['lel' + str(j)].update(lels[j].item())
 
-
             # print statistics
             if batch_idx % log_every == 0:
                 wandb.log({
                     **{w_tag + k: v.avg for k, v in metrics.items()},
-                    **{'epoch': epoch or phase}})
-                msg = f'[{epoch or phase}, {batch_idx / datasize * 100:.0f}%]\t' + \
+                    **{self._step_name: step}})
+                msg = f'[{step}, {batch_idx / datasize * 100:.0f}%]\t' + \
                       '\t '.join(f'{k}: {metrics[k].avg:.3f}' for k in metrics.keys())
                 self.logger.info(msg)
 
@@ -98,34 +94,32 @@ class Trainer:
 
         epoch_time.finish()
         self.logger.info(
-            f'==> Train[{epoch or phase}]:\tTime:{epoch_time.total:.4f}\tData:{data_time.total:.4f}\tLoss:{epoch_loss.avg:.4f}\t')
+            f'==> Train[{step}]:\tTime:{epoch_time.total:.4f}\tData:{data_time.total:.4f}\tLoss:{epoch_loss.avg:.4f}\t')
 
-    def test(self, loader, model, mask, phase):
+    def test(self, loader, model, mask, step):
         """Tests the model and return the accuracy"""
-        w_tag = self.tag + 'test/'
+        w_tag = self._tag + 'test/'
 
-        criterion = torch.nn.CrossEntropyLoss().to(self.device)
         model.eval()
-        losses, batch_time, accuracy = AverageMeter(), AverageMeter(), AverageMeter()
+        losses, accuracy = AverageMeter(), AverageMeter()
         mask = to_device(mask, self.device)
 
+        epoch_time = Timer().start()
         with torch.no_grad():
-            start = time.time()
             for inputs, labels in loader:
                 # Get outputs
                 inputs, labels = to_device((inputs, labels), self.device)
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                loss = self.criterion(outputs, labels)
                 losses.update(loss.data, inputs.size(0))
 
                 # Measure accuracy
                 prob = torch.softmax(outputs, dim=1)
                 acc = get_accuracy(prob, labels, mask)
                 accuracy.update(acc, labels.size(0))
-                batch_time.update(time.time() - start)
-                start = time.time()
 
-        wandb.log({w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, 'epoch': phase})
+        epoch_time.finish()
+        wandb.log({w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, self._step_name: step})
         self.logger.info(
-            f'==> Test [{phase}]:\tTime:{batch_time.sum:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
+            f'==> Test [{step}]:\tTime:{epoch_time.total:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
         return accuracy.avg
