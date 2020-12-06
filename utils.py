@@ -42,7 +42,7 @@ class Timer(object):
         self._running = False
         self._start = -1000000
 
-    def attach(self, f):
+    def get_timed_callable(self, f):
         assert callable(f)
         def f_(*args, **kwargs):
             self.start()
@@ -50,6 +50,41 @@ class Timer(object):
             self.finish()
             return r
         return f_
+
+    def get_timed_generator(self, gen):
+        """
+        Pythonically, a generator x is used commonly in two scenarios:
+        1. for i in x:  ...
+        2. list(x)
+        In both cases python does this:
+        1. it = x.__iter__()
+        2. yield next(it)  # until StopIteration raised
+
+        So we want to patch the gen.__iter__()
+        Args:
+            gen: a generator object
+
+        Returns:
+            New generator object that records its execution times to this timer.
+        """
+        def new_gen():
+            it = iter(gen)
+            while True:
+                try:
+                    self.start()
+                    y = next(it)
+                    self.finish()
+                    yield y
+                except StopIteration:
+                    self.discard()
+                    return
+
+        return new_gen()
+
+    def discard(self):
+        assert self._running
+        self._running = False
+        self._start = -1000000
 
     def __init__(self):
         self._values = []

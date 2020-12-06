@@ -53,11 +53,10 @@ class Trainer:
         epoch_time = Timer()  # the time it takes for one epoch
         data_time = Timer()  # the time it takes for forward+backward+step
         epoch_loss = AverageMeter()
-        loader_iter: Iterator = iter(loader)
-        data_time.attach(loader_iter.__next__)
+        timed_loader = data_time.get_timed_generator(loader)
 
         epoch_time.start()
-        for batch_idx, (inputs, labels) in enumerate(loader_iter, start=1):
+        for batch_idx, (inputs, labels) in enumerate(timed_loader, start=1):
 
             # Tweak inputs
             with data_time:
@@ -86,7 +85,6 @@ class Trainer:
 
             # print statistics
             if batch_idx % log_every == 0:
-
                 wandb.log({
                     **{w_tag + k: v.avg for k, v in metrics.items()},
                     **{'epoch': epoch or phase}})
