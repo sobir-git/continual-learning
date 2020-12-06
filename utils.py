@@ -5,6 +5,8 @@ class AverageMeter:
 
     @property
     def avg(self):
+        if self.n == 0:
+            return -1
         return self.sum / self.n
 
     def update(self, value, n=1):
@@ -14,6 +16,58 @@ class AverageMeter:
     def reset(self):
         self.n = 0
         self.sum = 0
+
+
+from time import time
+
+
+class Timer(object):
+    """
+    Timer context manager. Usage:
+        timer = Timer()
+        with timer:  # can do this many times
+            ... do some code
+
+        timer.total #  or timer.values
+    """
+
+    def start(self):
+        self._start = time()
+        assert not self._running, "Timer is already running"
+        self._running = True
+
+    def finish(self):
+        self._values.append(time() - self._start)
+        assert self._running, "Timer was not running"
+        self._running = False
+        self._start = -1000000
+
+    def attach(self, f):
+        assert callable(f)
+        def f_(*args, **kwargs):
+            self.start()
+            r = f(*args, **kwargs)
+            self.finish()
+            return r
+        return f_
+
+    def __init__(self):
+        self._values = []
+        self._running = False
+
+    def __enter__(self):
+        self.start()
+
+    def __exit__(self, type, value, traceback):
+        self.finish()
+
+    @property
+    def values(self):
+        return self._values.copy()
+
+    @property
+    def total(self):
+        return sum(self._values)
 
 
 # ============================================================

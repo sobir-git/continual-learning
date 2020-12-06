@@ -1,20 +1,23 @@
 import time
+from typing import Iterator, Dict
 
 import numpy as np
 import torch
 import wandb
 
 import models.bnet_base
-from utils import AverageMeter, get_accuracy, to_device
+from utils import AverageMeter, get_accuracy, to_device, Timer
 
 
 class Trainer:
-    def __init__(self, opt, logger, device, tag=''):
+    _default_criterion = torch.nn.CrossEntropyLoss()
+
+    def __init__(self, opt, logger, device, tag='', criterion=None):
         self.opt = opt
         self.logger = logger
         assert not opt.regularization == 'cutmix', "we cannot apply cutmix"
-        self.default_criterion = torch.nn.CrossEntropyLoss().to(device)
         self.device = device
+        self.criterion = (criterion if criterion else self._default_criterion).to(device)
         if tag:
             self.tag = tag + '/'
         else:
@@ -34,67 +37,69 @@ class Trainer:
             In both cases either epoch number of phase number is given, just for the purpose of logging.
         """
         w_tag = self.tag + 'train/'
-
         is_bnet = isinstance(model, models.bnet_base.BranchNet)
-
         datasize = len(loader)
         log_every = min(np.ceil(datasize / 5), max(np.ceil(datasize / 20), 1000))  # log every n batches
-
         model.train()
-        loss_meter, data_time, batch_time = [AverageMeter() for _ in range(3)]
-
+        # create metrics
+        _mn = ['loss']
         if is_bnet:
-            lel_meters = [AverageMeter() for _ in model.branches]
-            clf_loss_meter = AverageMeter()
+            _mn.append('clf_loss')
+            _mn.extend('lel' + str(i) for i in range(len(model.branches)))
+        metrics: Dict[str, AverageMeter] = {name: AverageMeter() for name in _mn}
 
-        start = time.time()
+        # create timers
+        epoch_time = Timer()  # the time it takes for one epoch
+        data_time = Timer()  # the time it takes for forward+backward+step
+        epoch_loss = AverageMeter()
+        loader_iter: Iterator = iter(loader)
+        data_time.attach(loader_iter.__iter__)
 
-        for loop in range(self.opt.num_loops if phase else 1):  # loop only applies for CL training
-            for batch_idx, (inputs, labels) in enumerate(loader, start=1):
+        epoch_time.start()
+        for batch_idx, (inputs, labels) in enumerate(loader_iter, start=1):
 
-                # Tweak inputs
+            # Tweak inputs
+            with data_time:
                 inputs, labels = to_device((inputs, labels), self.device)
-                data_time.update(time.time() - start)
 
-                # forward + backward + optimize
-                if is_bnet:
-                    loss, lels, clf_loss = model.loss(inputs, labels, branch_idx=branch_idx)
-                else:
-                    outputs = model(inputs)
-                    loss = self.default_criterion(outputs, labels)
+            # forward + backward + optimize
+            if is_bnet:
+                loss, lels, clf_loss = model.loss(inputs, labels, branch_idx=branch_idx)
+            else:
+                outputs = model(inputs)
+                loss = self.criterion(outputs, labels)
 
-                optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), self.opt.clip)  # Always be safe than sorry
-                optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), self.opt.clip)  # Always be safe than sorry
+            optimizer.step()
 
-                # Log losses
-                batch_time.update(time.time() - start)
-                loss_meter.update(loss.item())
-                if is_bnet:
-                    clf_loss_meter.update(clf_loss.item())
-                    for j in range(len(lels)):
-                        lel_meters[j].update(lels[j].item())
+            # Log losses
+            metrics['loss'].update(loss.item())
+            epoch_loss.update(loss.item())
+            if is_bnet:
+                metrics['clf_loss'].update(clf_loss.item())
+                for j in range(len(lels)):
+                    metrics['lel' + str(j)].update(lels[j].item())
 
-                # print statistics
-                if batch_idx % log_every == 0:
-                    wandb.log({w_tag + 'loss': loss_meter.avg}, step=batch_idx)
-                    msg = f'[{epoch or phase}, {batch_idx / datasize * 100:.0f}%]\t loss: {loss_meter.avg:.3f}'
-                    if is_bnet:
-                        wandb.log(
-                            dict(**{w_tag + 'lel' + str(j): lm.avg for j, lm in enumerate(lel_meters)},
-                                 **{w_tag + 'clf_loss': clf_loss_meter.avg},
-                                 **{'epoch': epoch or phase}),
-                            step=batch_idx
-                        )
-                        _formatted_lels = ''.join(['%.3f ' % l.avg for l in lel_meters])
-                        msg += f'\t clf_loss: {clf_loss_meter.avg:.3f}\t lels: {_formatted_lels}'
-                    self.logger.info(msg)
 
-                start = time.time()
+            # print statistics
+            if batch_idx % log_every == 0:
 
+                wandb.log({
+                    **{w_tag + k: v.avg for k, v in metrics.items()},
+                    **{'epoch': epoch or phase}})
+                msg = f'[{epoch or phase}, {batch_idx / datasize * 100:.0f}%]' + \
+                      '\t '.join(f'{k}: {metrics[k].avg:.3f}' for k in metrics.keys())
+                self.logger.info(msg)
+
+                # reset metrics
+                for v in metrics.values():
+                    v.reset()
+
+        epoch_time.finish()
         self.logger.info(
-            f'==> Train[{epoch or phase}]:\tTime:{batch_time.sum:.4f}\tData:{data_time.sum:.4f}\tLoss:{loss_meter.avg:.4f}\t')
+            f'==> Train[{epoch or phase}]:\tTime:{epoch_time.total:.4f}\tData:{data_time.total:.4f}\tLoss:{epoch_loss.avg:.4f}\t')
 
     def test(self, loader, model, mask, phase):
         """Tests the model and return the accuracy"""

@@ -19,7 +19,7 @@ def parse_args(args=None):
     # parser.add_argument('--memory_size', type=int, required=True,
     #                     help='Total slots available in the storage for the experiment')
     # parser.add_argument('--num_passes', type=int, required=True, help='Number of passes to train over the storage')
-    parser.add_argument('--num_loops', type=int, required=True, help='Number of loops over each batch')
+    # parser.add_argument('--num_loops', type=int, required=True, help='Number of loops over each batch')
     parser.add_argument('--num_pretrain_passes', type=int, default=0, help='Number of passes to train over the storage')
 
     parser.add_argument('--regularization', type=str, default='none', choices=['none', 'cutmix'],
