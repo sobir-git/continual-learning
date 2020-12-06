@@ -57,6 +57,7 @@ def exp1(opt):
             logger.info(f'==> Starting pretraining')
             for epoch in range(1, opt.num_pretrain_passes + 1):
                 schedule_lr(opt, optimizer, scheduler, epoch)
+                wandb.log({'lr': scheduler.get_last_lr(), 'epoch': epoch})
                 trainer.train(loader=vd.pretrain_loader, model=model, optimizer=optimizer, step=epoch)
                 acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, step=epoch)
             logger.info(f'==> Pretraining completed! Acc: [{acc:.3f}]')
@@ -79,6 +80,7 @@ def exp1(opt):
 
         for phase, (trainloader, testloader, class_list, phase_mask) in enumerate(dataloaders, start=1):
             schedule_lr(opt, optimizer, scheduler, scheduler_prior_steps + phase)
+            wandb.log({'lr': scheduler.get_last_lr(), 'phase': phase})
             trainer.train(loader=trainloader, model=model, optimizer=optimizer, step=phase)
 
             # accumulate masks, because we want to test on all seen classes
