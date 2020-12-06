@@ -56,6 +56,7 @@ class Trainer:
                 inputs, labels = to_device((inputs, labels), self.device)
                 data_time.update(time.time() - start)
 
+                # forward + backward + optimize
                 if is_bnet:
                     loss, lels, clf_loss = model.loss(inputs, labels, branch_idx=branch_idx)
                 else:
@@ -86,16 +87,14 @@ class Trainer:
                                  **{'epoch': epoch or phase}),
                             step=batch_idx
                         )
-
                         _formatted_lels = ''.join(['%.3f ' % l.avg for l in lel_meters])
                         msg += f'\t clf_loss: {clf_loss_meter.avg:.3f}\t lels: {_formatted_lels}'
+                    self.logger.info(msg)
 
-                        self.logger.info(msg)
+                start = time.time()
 
-                        start = time.time()
-
-                        self.logger.info(
-                            f'==> Train[{epoch or phase}]:\tTime:{batch_time.sum:.4f}\tData:{data_time.sum:.4f}\tLoss:{loss_meter.avg:.4f}\t')
+        self.logger.info(
+            f'==> Train[{epoch or phase}]:\tTime:{batch_time.sum:.4f}\tData:{data_time.sum:.4f}\tLoss:{loss_meter.avg:.4f}\t')
 
     def test(self, loader, model, mask, phase):
         """Tests the model and return the accuracy"""
@@ -122,7 +121,7 @@ class Trainer:
                 batch_time.update(time.time() - start)
                 start = time.time()
 
-        wandb.log({w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, 'phase': phase})
+        wandb.log({w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, 'epoch': phase})
         self.logger.info(
             f'==> Test [{phase}]:\tTime:{batch_time.sum:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
         return accuracy.avg
