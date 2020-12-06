@@ -38,6 +38,9 @@ def parse_args(args=None):
     parser.add_argument('--maxlr', type=float, default=0.05, help='Starting Learning rate')
     parser.add_argument('--minlr', type=float, default=0.0005, help='Ending Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-6, help='Weight decay')
+    parser.add_argument('--refresh_scheduler', action='store_true',
+                        help='Refresh learning-rate scheduler when switching from pretraining to incremental')
+
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size to be used in training')
     parser.add_argument('--cutmix_alpha', type=float, default=1.0, help='Cutmix alpha parameter')
     parser.add_argument('--cutmix_prob', type=float, default=0.5, help='Cutmix probability')

@@ -1,5 +1,6 @@
 import torch
 import wandb
+from torch import optim
 
 import models.concrete.single
 from dataloader import VisionDataset
@@ -11,6 +12,19 @@ from utils import AverageMeter, get_logger, save_pretrained_model, load_pretrain
 device = get_default_device()
 
 
+def schedule_lr(opt, optimizer, scheduler, epoch):
+    # Handle lr scheduling
+    assert epoch >= 1, "Make sure you index epochs from 1"
+    if epoch == 1:  # Warm start of 1 epoch
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = opt.maxlr * 0.1
+    elif epoch == 2:  # Then set to maxlr
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = opt.maxlr
+    else:  # Aand go!
+        scheduler.step()
+
+
 def exp1(opt):
     model = getattr(models.concrete.single, opt.model)(opt).to(device)
     wandb.watch(model)
@@ -20,7 +34,8 @@ def exp1(opt):
     wandb.config.update({'class_order': class_order})
     vd = VisionDataset(opt, class_order=class_order)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=opt.maxlr, momentum=0.9, weight_decay=opt.weight_decay)
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1, T_mult=2, eta_min=opt.minlr)
 
     logger = get_logger(folder=opt.log_dir + '/' + opt.exp_name + '/')
     logger.info(f'Running with device {device}')
@@ -41,6 +56,7 @@ def exp1(opt):
             assert opt.num_pretrain_passes > 0
             logger.info(f'==> Starting pretraining')
             for epoch in range(1, opt.num_pretrain_passes + 1):
+                schedule_lr(opt, optimizer, scheduler, epoch)
                 trainer.train(loader=vd.pretrain_loader, model=model, optimizer=optimizer, step=epoch)
                 acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, step=epoch)
             logger.info(f'==> Pretraining completed! Acc: [{acc:.3f}]')
@@ -55,7 +71,14 @@ def exp1(opt):
         mask = vd.pretrain_mask.clone() if opt.num_pretrain_classes > 0 else torch.zeros(vd.n_classes_in_whole_dataset)
         dataloaders = vd.get_ci_dataloaders()
         cl_accuracy_meter = AverageMeter()
+        if opt.refresh_scheduler:
+            scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1, T_mult=2, eta_min=opt.minlr)
+            scheduler_prior_steps = 0
+        else:
+            scheduler_prior_steps = opt.num_pretrain_passes
+
         for phase, (trainloader, testloader, class_list, phase_mask) in enumerate(dataloaders, start=1):
+            schedule_lr(opt, optimizer, scheduler, scheduler_prior_steps + phase)
             trainer.train(loader=trainloader, model=model, optimizer=optimizer, step=phase)
 
             # accumulate masks, because we want to test on all seen classes
