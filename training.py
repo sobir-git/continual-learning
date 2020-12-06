@@ -3,6 +3,7 @@ from typing import Iterator, Dict
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 import wandb
 
 import models.bnet_base
@@ -23,7 +24,7 @@ class Trainer:
         else:
             self.tag = ''
 
-    def train(self, loader, optimizer, model, epoch=None, phase=None, branch_idx=None):
+    def train(self, loader: DataLoader, optimizer, model, epoch=None, phase=None, branch_idx=None):
         assert epoch is None or epoch > 0
         assert phase is None or phase > 0
         assert epoch or phase
@@ -53,7 +54,7 @@ class Trainer:
         data_time = Timer()  # the time it takes for forward+backward+step
         epoch_loss = AverageMeter()
         loader_iter: Iterator = iter(loader)
-        data_time.attach(loader_iter.__iter__)
+        data_time.attach(loader_iter.__next__)
 
         epoch_time.start()
         for batch_idx, (inputs, labels) in enumerate(loader_iter, start=1):
@@ -89,7 +90,7 @@ class Trainer:
                 wandb.log({
                     **{w_tag + k: v.avg for k, v in metrics.items()},
                     **{'epoch': epoch or phase}})
-                msg = f'[{epoch or phase}, {batch_idx / datasize * 100:.0f}%]' + \
+                msg = f'[{epoch or phase}, {batch_idx / datasize * 100:.0f}%]\t' + \
                       '\t '.join(f'{k}: {metrics[k].avg:.3f}' for k in metrics.keys())
                 self.logger.info(msg)
 
