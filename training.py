@@ -50,7 +50,7 @@ class Trainer:
         start = time.time()
 
         for loop in range(self.opt.num_loops if phase else 1):  # loop only applies for CL training
-            for i, (inputs, labels) in enumerate(loader, start=1):
+            for batch_idx, (inputs, labels) in enumerate(loader, start=1):
 
                 # Tweak inputs
                 inputs, labels = to_device((inputs, labels), self.device)
@@ -76,23 +76,28 @@ class Trainer:
                         lel_meters[j].update(lels[j].item())
 
                 # print statistics
-                if i % log_every == 0:
-                    wandb.log({w_tag + 'loss': loss_meter.avg})
-                    msg = f'[{epoch or phase}, {i / datasize * 100:.0f}%]\t loss: {loss_meter.avg:.3f}'
+                if batch_idx % log_every == 0:
+                    wandb.log({w_tag + 'loss': loss_meter.avg}, step=batch_idx)
+                    msg = f'[{epoch or phase}, {batch_idx / datasize * 100:.0f}%]\t loss: {loss_meter.avg:.3f}'
                     if is_bnet:
-                        wandb.log({w_tag + 'clf_loss': clf_loss_meter.avg})
-                        for j, lm in enumerate(lel_meters):
-                            wandb.log({w_tag + 'lel' + str(j): lm.avg})
+                        wandb.log(
+                            dict(**{w_tag + 'lel' + str(j): lm.avg for j, lm in enumerate(lel_meters)},
+                                 **{w_tag + 'clf_loss': clf_loss_meter.avg},
+                                 **{'epoch': epoch or phase}),
+                            step=batch_idx
+                        )
+
                         _formatted_lels = ''.join(['%.3f ' % l.avg for l in lel_meters])
                         msg += f'\t clf_loss: {clf_loss_meter.avg:.3f}\t lels: {_formatted_lels}'
-                    self.logger.info(msg)
 
-                start = time.time()
+                        self.logger.info(msg)
 
-        self.logger.info(
-            f'==> Train[{epoch or phase}]:\tTime:{batch_time.sum:.4f}\tData:{data_time.sum:.4f}\tLoss:{loss_meter.avg:.4f}\t')
+                        start = time.time()
 
-    def test(self, loader, model, mask, epoch_or_phase):
+                        self.logger.info(
+                            f'==> Train[{epoch or phase}]:\tTime:{batch_time.sum:.4f}\tData:{data_time.sum:.4f}\tLoss:{loss_meter.avg:.4f}\t')
+
+    def test(self, loader, model, mask, phase):
         """Tests the model and return the accuracy"""
         w_tag = self.tag + 'test/'
 
@@ -117,8 +122,7 @@ class Trainer:
                 batch_time.update(time.time() - start)
                 start = time.time()
 
-        wandb.log({w_tag + 'loss': losses.avg})
-        wandb.log({w_tag + 'acc': accuracy.avg})
+        wandb.log({w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, 'phase': phase})
         self.logger.info(
-            f'==> Test [{epoch_or_phase}]:\tTime:{batch_time.sum:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
+            f'==> Test [{phase}]:\tTime:{batch_time.sum:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
         return accuracy.avg

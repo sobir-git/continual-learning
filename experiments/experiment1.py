@@ -14,6 +14,7 @@ device = get_default_device()
 def exp1(opt):
     model = getattr(models.concrete.single, opt.model)(opt).to(device)
     wandb.watch(model)
+    wandb.run.summary['model_graph:'] = str(model)
     opt.exp_name += opt.model
     class_order = list(range(10))
     wandb.config.update({'class_order': class_order})
@@ -41,8 +42,7 @@ def exp1(opt):
             logger.info(f'==> Starting pretraining')
             for epoch in range(1, opt.num_pretrain_passes + 1):
                 trainer.train(loader=vd.pretrain_loader, model=model, optimizer=optimizer, epoch=epoch)
-                acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, epoch_or_phase=epoch)
-            wandb.summary['pretrain_acc'] = acc
+                acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, phase=epoch)
             logger.info(f'==> Pretraining completed! Acc: [{acc:.3f}]')
             save_pretrained_model(opt, model)
 
@@ -62,9 +62,8 @@ def exp1(opt):
             mask += phase_mask
 
             # this is the accuracy for all classes seen so far
-            acc = trainer.test(loader=testloader, model=model, mask=mask, epoch_or_phase=phase)
+            acc = trainer.test(loader=testloader, model=model, mask=mask, phase=phase)
             cl_accuracy_meter.update(acc)
-        wandb.summary['cl_average_accuracy'] = cl_accuracy_meter.avg
         logger.info(f'==> CL training completed! AverageAcc: [{cl_accuracy_meter.avg:.3f}]')
 
 
