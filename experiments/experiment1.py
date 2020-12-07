@@ -60,7 +60,7 @@ def exp1(opt):
                 schedule_lr(opt, optimizer, scheduler, epoch)
                 wandb.log({'lr': scheduler.get_last_lr(), 'epoch': epoch})
                 trainer.train(loader=vd.pretrain_loader, model=model, optimizer=optimizer, step=epoch)
-                acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, step=epoch)
+                acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, class_names=vd.class_names, step=epoch)
             logger.info(f'==> Pretraining completed! Acc: [{acc:.3f}]')
             save_pretrained_model(opt, model)
 
@@ -88,7 +88,7 @@ def exp1(opt):
             mask += phase_mask
 
             # this is the accuracy for all classes seen so far
-            acc = trainer.test(loader=testloader, model=model, mask=mask, step=phase)
+            acc = trainer.test(loader=testloader, model=model, mask=mask, class_names=vd.class_names, step=phase)
             cl_accuracy_meter.update(acc)
         logger.info(f'==> CL training completed! AverageAcc: [{cl_accuracy_meter.avg:.3f}]')
 

@@ -78,3 +78,13 @@ def test_get_ci_dataloaders(vd):
         cum_class_list += class_list
         indices = list(testloader.sampler)
         assert set(np.array(testloader.dataset.targets)[indices]) == set(cum_class_list)
+
+
+def test_class_names(vd):
+    classes = ('plane', 'car', 'bird', 'cat',
+               'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+    assert vd.opt.dataset == 'CIFAR10', "Sorry, this test applies to cifar-10 for now"
+
+    for c in classes:
+        i = classes.index(c)
+        assert vd.class_names[vd.target_transform(i)] == c

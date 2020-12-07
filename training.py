@@ -96,13 +96,15 @@ class Trainer:
         self.logger.info(
             f'==> Train[{step}]:\tTime:{epoch_time.total:.4f}\tData:{data_time.total:.4f}\tLoss:{epoch_loss.avg:.4f}\t')
 
-    def test(self, loader, model, mask, step):
+    def test(self, loader, model, mask, class_names, step):
         """Tests the model and return the accuracy"""
         w_tag = self._tag + 'test/'
 
         model.eval()
         losses, accuracy = AverageMeter(), AverageMeter()
         mask = to_device(mask, self.device)
+        all_preds = torch.tensor([])
+        all_trues = torch.tensor([])
 
         epoch_time = Timer().start()
         with torch.no_grad():
@@ -114,11 +116,15 @@ class Trainer:
                 losses.update(loss.data, inputs.size(0))
 
                 # Measure accuracy
-                prob = torch.softmax(outputs, dim=1)
-                acc = get_accuracy(prob, labels, mask)
+                pred = torch.softmax(outputs, dim=1)
+                acc = get_accuracy(pred, labels, mask)
                 accuracy.update(acc, labels.size(0))
 
+                all_preds = torch.cat((all_preds, pred), dim=0)
+                all_trues = torch.cat((all_trues, labels), dim=0)
         epoch_time.finish()
+
+        wandb.sklearn.plot_confusion_matrix(all_trues, all_preds, labels=class_names)
         wandb.log({w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, self._step_name: step})
         self.logger.info(
             f'==> Test [{step}]:\tTime:{epoch_time.total:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')

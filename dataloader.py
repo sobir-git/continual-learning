@@ -75,6 +75,21 @@ class VisionDataset(object):
         return self._class_order.copy()
 
     @property
+    def class_names(self):
+        """
+        Class names in order of class_orders
+        """
+        if self.opt.dataset == 'CIFAR10':
+            classes = ('plane', 'car', 'bird', 'cat',
+                       'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+            r = [None] * len(classes)
+            for i, c in enumerate(classes):
+                r[self.target_transform(i)] = c
+            return r
+        else:
+            return None
+
+    @property
     def cl_class_list(self):
         return self._class_order[self.opt.num_pretrain_classes: self.opt.total_num_classes]
 
