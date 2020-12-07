@@ -120,8 +120,8 @@ class Trainer:
                 acc = get_accuracy(pred, labels, mask)
                 accuracy.update(acc, labels.size(0))
 
-                all_preds = torch.cat((all_preds, pred), dim=0)
-                all_trues = torch.cat((all_trues, labels), dim=0)
+                all_preds = torch.cat((all_preds, pred.cpu()), dim=0)
+                all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
         epoch_time.finish()
 
         wandb.sklearn.plot_confusion_matrix(all_trues, all_preds, labels=class_names)
