@@ -19,7 +19,7 @@ def cifar10batch():
     return torch.rand(batch_size, 3, 32, 32)
 
 
-@pytest.mark.parametrize('cifar10cnn', [(4, 1, True), (4, 1, False), (16, 3, True), (16, 3, False)], indirect=True)
+@pytest.mark.parametrize('cifar10cnn', [(4, 1, True), (4, 1, False), (16, 3, True), (16, 3, False), (16, 4, True)], indirect=True)
 def test_forward(cifar10batch, cifar10cnn):
     batch_size = cifar10batch.size(0)
     assert batch_size == 16

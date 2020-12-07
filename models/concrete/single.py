@@ -4,7 +4,7 @@ from models.bnet1 import BranchNet1
 from models.bnet_base import Branch
 from models.cifar10cnn import block, final_block, Cifar10Cnn
 
-__all__ = ['single_branched', 'cnn_model']
+__all__ = ['single_branched', 'cnn_model3', 'cnn_model4']
 __n_initial_channels = 16
 
 
@@ -24,5 +24,9 @@ def single_branched(opt):
     return net
 
 
-def cnn_model(opt):
+def cnn_model3(opt):
     return Cifar10Cnn(opt, n_initial_filters=__n_initial_channels, n_blocks=3)
+
+
+def cnn_model4(opt):
+    return Cifar10Cnn(opt, n_initial_filters=__n_initial_channels, n_blocks=4)
