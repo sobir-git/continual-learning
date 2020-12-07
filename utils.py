@@ -137,14 +137,18 @@ def get_logger(folder):
     return logger
 
 
+def get_prediction(y_prob, mask=None):
+    if mask:
+        y_prob = torch.mul(y_prob, mask)
+    y_pred = torch.argmax(y_prob, 1)
+    return y_pred
+
+
 def get_accuracy(y_prob, y_true, mask=None):
     '''
     Calculates the task and class incremental accuracy of the model
     '''
-    y_pred = torch.argmax(y_prob, 1)
-    # assert (y_prob.size() == mask.size()), "Class mask does not match probabilities in output"
-    masked_prob = torch.mul(y_prob, mask)
-    y_pred_masked = torch.argmax(masked_prob, 1)
+    y_pred_masked = get_prediction(y_prob, mask=mask)
     acc_masked = torch.eq(y_pred_masked, y_true)
     return (acc_masked * 1.0).mean()
 

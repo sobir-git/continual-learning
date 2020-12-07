@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 import wandb
 
 import models.bnet_base
-from utils import AverageMeter, get_accuracy, to_device, Timer
+from utils import AverageMeter, get_accuracy, to_device, Timer, get_prediction
 
 
 class Trainer:
@@ -116,11 +116,11 @@ class Trainer:
                 losses.update(loss.data, inputs.size(0))
 
                 # Measure accuracy
-                pred = torch.softmax(outputs, dim=1)
-                acc = get_accuracy(pred, labels, mask)
+                probs = torch.softmax(outputs, dim=1)
+                acc = get_accuracy(probs, labels, mask)
                 accuracy.update(acc, labels.size(0))
 
-                all_preds = torch.cat((all_preds, pred.cpu()), dim=0)
+                all_preds = torch.cat((all_preds, get_prediction(probs, mask=mask).cpu()), dim=0)
                 all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
         epoch_time.finish()
 
