@@ -27,7 +27,8 @@ def schedule_lr(opt, optimizer, scheduler, epoch):
 
 def exp1(opt):
     model = getattr(models.concrete.single, opt.model)(opt).to(device)
-    wandb.watch(model)
+    if opt.watch:
+        wandb.watch(model)
     wandb.run.summary['model_graph:'] = str(model)
     opt.exp_name += opt.model
     class_order = list(range(10))

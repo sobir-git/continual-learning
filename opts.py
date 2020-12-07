@@ -27,7 +27,7 @@ def parse_args(args=None):
     parser.add_argument('--model', type=str, required=True, help='Model architecture')
     # parser.add_argument('--depth', type=int, default=0, help='Depth of the model')
     # parser.add_argument('--width', type=int, default=0, help='Width of a model')
-    parser.add_argument('--seed', type=int, default=0, help='Seed for reproducibility of class-setting etc')
+    # parser.add_argument('--seed', type=int, default=0, help='Seed for reproducibility of class-setting etc')
     parser.add_argument('--exp_name', type=str, default='test', help='Experiment name')
     parser.add_argument('--old_exp_name', type=str, default='test',
                         help='Name of experiment to take pretrained model from')
@@ -48,17 +48,21 @@ def parse_args(args=None):
     parser.add_argument('--workers', type=int, default=2, help='Number of parallel worker threads')
 
     # Default model options
-    parser.add_argument('--activetype', default='ReLU',
-                        choices=['ReLU6', 'LeakyReLU', 'PReLU', 'ReLU', 'ELU', 'Softplus', 'SELU', 'None'],
-                        help='Activation types')
-    parser.add_argument('--pooltype', type=str, default='MaxPool2d',
-                        choices=['MaxPool2d', 'AvgPool2d', 'adaptive_max_pool2d', 'adaptive_avg_pool2d'],
-                        help='Pooling types')
+    # parser.add_argument('--activetype', default='ReLU',
+    #                     choices=['ReLU6', 'LeakyReLU', 'PReLU', 'ReLU', 'ELU', 'Softplus', 'SELU', 'None'],
+    #                     help='Activation types')
+    # parser.add_argument('--pooltype', type=str, default='MaxPool2d',
+    #                     choices=['MaxPool2d', 'AvgPool2d', 'adaptive_max_pool2d', 'adaptive_avg_pool2d'],
+    #                     help='Pooling types')
     parser.add_argument('--bn', action="store_false", help='Apply Batchnorm. Set to True by default')
     # parser.add_argument('--affine_bn', action="store_false",
     #                     help='Apply affine transform in BN. Set to True by default')
     # parser.add_argument('--bn_eps', type=float, default=1e-6, help='Affine transform for batch norm')
     # parser.add_argument('--compression', type=float, default=0.5, help='DenseNet BC hyperparam')
+
+    # wandb options
+    parser.add_argument('--watch', action="store_true", help='Let the wandb watch the model')
+
     if args is not None:
         opt = parser.parse_args(args)
     else:
