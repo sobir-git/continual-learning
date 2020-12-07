@@ -138,7 +138,7 @@ def get_logger(folder):
 
 
 def get_prediction(y_prob, mask=None):
-    if mask:
+    if mask is not None:
         y_prob = torch.mul(y_prob, mask)
     y_pred = torch.argmax(y_prob, 1)
     return y_pred
