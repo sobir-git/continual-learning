@@ -12,17 +12,21 @@ from utils import AverageMeter, get_logger, save_pretrained_model, load_pretrain
 device = get_default_device()
 
 
-def schedule_lr(opt, optimizer, scheduler, epoch):
-    # Handle lr scheduling
-    assert epoch >= 1, "Make sure you index epochs from 1"
-    if epoch == 1:  # Warm start of 1 epoch
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = opt.maxlr * 0.1
-    elif epoch == 2:  # Then set to maxlr
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = opt.maxlr
-    else:  # Aand go!
-        scheduler.step()
+def create_optimizer(opt, model):
+    if opt.optimizer == 'sgd':
+        optimizer = optim.SGD(model.parameters(), lr=opt.maxlr, momentum=0.9, weight_decay=opt.weight_decay)
+        return optimizer
+
+
+def create_scheduler(opt, optimizer, n_epochs=None):
+    scheduler = None
+    if opt.scheduler == 'const':
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1)
+    elif opt.scheduler == 'exp':
+        assert n_epochs is not None, "Number of epochs is required for the exponential learning rate"
+        gamma = (opt.minlr / opt.maxlr) ** (1 / n_epochs)
+        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+    return scheduler
 
 
 def exp1(opt):
@@ -35,8 +39,8 @@ def exp1(opt):
     wandb.config.update({'class_order': class_order})
     vd = VisionDataset(opt, class_order=class_order)
 
-    optimizer = optim.SGD(model.parameters(), lr=opt.maxlr, momentum=0.9, weight_decay=opt.weight_decay)
-    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1, T_mult=2, eta_min=opt.minlr)
+    optimizer = create_optimizer(opt, model)
+    scheduler = create_scheduler(opt, optimizer, opt.num_pretrain_passes)
 
     logger = get_logger(folder=opt.log_dir + '/' + opt.exp_name + '/')
     logger.info(f'Running with device {device}')
@@ -57,12 +61,16 @@ def exp1(opt):
             assert opt.num_pretrain_passes > 0
             logger.info(f'==> Starting pretraining')
             for epoch in range(1, opt.num_pretrain_passes + 1):
-                schedule_lr(opt, optimizer, scheduler, epoch)
-                wandb.log({'lr': scheduler.get_last_lr(), 'epoch': epoch})
+                wandb.log({'learning_rate': scheduler.get_last_lr(), 'epoch': epoch})
                 trainer.train(loader=vd.pretrain_loader, model=model, optimizer=optimizer, step=epoch)
-                acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask, class_names=vd.class_names, step=epoch)
+                scheduler.step()
+                acc = trainer.test(loader=vd.pretest_loader, model=model, mask=vd.pretrain_mask,
+                                   classnames=vd.class_names, step=epoch)
+
             logger.info(f'==> Pretraining completed! Acc: [{acc:.3f}]')
-            save_pretrained_model(opt, model)
+
+            if opt.old_exp_name != '':
+                save_pretrained_model(opt, model)
 
     if opt.num_tasks > 0:
         # TODO: use another optimizer?
@@ -74,21 +82,19 @@ def exp1(opt):
         dataloaders = vd.get_ci_dataloaders()
         cl_accuracy_meter = AverageMeter()
         if opt.refresh_scheduler:
-            scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1, T_mult=2, eta_min=opt.minlr)
-            scheduler_prior_steps = 0
-        else:
-            scheduler_prior_steps = opt.num_pretrain_passes
+            scheduler = create_scheduler(opt, optimizer, n_epochs=opt.num_tasks)
 
         for phase, (trainloader, testloader, class_list, phase_mask) in enumerate(dataloaders, start=1):
-            schedule_lr(opt, optimizer, scheduler, scheduler_prior_steps + phase)
-            wandb.log({'lr': scheduler.get_last_lr(), 'phase': phase})
+            logger.info(f'==> Phase {phase}: learning classes {", ".join(map(str, class_list))}')
+            wandb.log({'learning_rate': scheduler.get_last_lr(), 'phase': phase})
             trainer.train(loader=trainloader, model=model, optimizer=optimizer, step=phase)
+            scheduler.step()
 
             # accumulate masks, because we want to test on all seen classes
             mask += phase_mask
 
             # this is the accuracy for all classes seen so far
-            acc = trainer.test(loader=testloader, model=model, mask=mask, class_names=vd.class_names, step=phase)
+            acc = trainer.test(loader=testloader, model=model, mask=mask, classnames=vd.class_names, step=phase)
             cl_accuracy_meter.update(acc)
         logger.info(f'==> CL training completed! AverageAcc: [{cl_accuracy_meter.avg:.3f}]')
 

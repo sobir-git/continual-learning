@@ -52,54 +52,55 @@ class Trainer:
         epoch_time = Timer()  # the time it takes for one epoch
         data_time = Timer()  # the time it takes for forward+backward+step
         epoch_loss = AverageMeter()
-        timed_loader = data_time.get_timed_generator(loader)
 
         epoch_time.start()
-        for batch_idx, (inputs, labels) in enumerate(timed_loader, start=1):
+        num_loops = self.opt.num_loops if self.type == 'cl' else 1  # for CL we can loop many times over the batches
+        for i in range(num_loops):
+            for batch_idx, (inputs, labels) in enumerate(data_time.get_timed_generator(loader), start=1):
 
-            # Tweak inputs
-            with data_time:
-                inputs, labels = to_device((inputs, labels), self.device)
+                # Tweak inputs
+                with data_time:
+                    inputs, labels = to_device((inputs, labels), self.device)
 
-            # forward + backward + optimize
-            if is_bnet:
-                loss, lels, clf_loss = model.loss(inputs, labels, branch_idx=branch_idx)
-            else:
-                outputs = model(inputs)
-                loss = self.criterion(outputs, labels)
+                # forward + backward + optimize
+                if is_bnet:
+                    loss, lels, clf_loss = model.loss(inputs, labels, branch_idx=branch_idx)
+                else:
+                    outputs = model(inputs)
+                    loss = self.criterion(outputs, labels)
 
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), self.opt.clip)  # Always be safe than sorry
-            optimizer.step()
+                optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), self.opt.clip)  # Always be safe than sorry
+                optimizer.step()
 
-            # Log losses
-            metrics['loss'].update(loss.item())
-            epoch_loss.update(loss.item())
-            if is_bnet:
-                metrics['clf_loss'].update(clf_loss.item())
-                for j in range(len(lels)):
-                    metrics['lel' + str(j)].update(lels[j].item())
+                # Log losses
+                metrics['loss'].update(loss.item())
+                epoch_loss.update(loss.item())
+                if is_bnet:
+                    metrics['clf_loss'].update(clf_loss.item())
+                    for j in range(len(lels)):
+                        metrics['lel' + str(j)].update(lels[j].item())
 
-            # print statistics
-            if batch_idx % log_every == 0:
-                wandb.log({
-                    **{w_tag + k: v.avg for k, v in metrics.items()},
-                    **{self._step_name: step}})
-                msg = f'[{step}, {batch_idx / datasize * 100:.0f}%]\t' + \
-                      '\t '.join(f'{k}: {metrics[k].avg:.3f}' for k in metrics.keys())
-                self.logger.info(msg)
+                # print statistics
+                if batch_idx % log_every == 0:
+                    wandb.log({
+                        **{w_tag + k: v.avg for k, v in metrics.items()},
+                        **{self._step_name: step}})
+                    msg = f'[{step}, {batch_idx / datasize * 100:.0f}%]\t' + \
+                          '\t '.join(f'{k}: {metrics[k].avg:.3f}' for k in metrics.keys())
+                    self.logger.info(msg)
 
-                # reset metrics
-                for v in metrics.values():
-                    v.reset()
+                    # reset metrics
+                    for v in metrics.values():
+                        v.reset()
 
         epoch_time.finish()
         self.logger.info(
             f'==> Train[{step}]:\tTime:{epoch_time.total:.4f}\tData:{data_time.total:.4f}\tLoss:{epoch_loss.avg:.4f}\t')
 
     @torch.no_grad()
-    def test(self, loader, model, mask, class_names, step):
+    def test(self, loader, model, mask, classnames, step):
         """Tests the model and return the accuracy"""
         w_tag = self._tag + 'test/'
 
@@ -126,10 +127,11 @@ class Trainer:
             all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
         epoch_time.finish()
 
+        cm = confusion_matrix(all_trues, all_preds, labels=range(len(classnames)))
         wandb.log(
             {
                 w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg,
-                w_tag + 'confusion_matrix': wandb_confusion_matrix(all_trues, all_preds, labels=class_names)
+                w_tag + 'conf_mtx': wandb_confusion_matrix(confmatrix=cm, classnames=classnames)
             },
             commit=False
         )
@@ -144,14 +146,16 @@ class Trainer:
                     branch_preds[br_idx] = torch.cat(
                         (branch_preds[br_idx], get_prediction(probs, mask=mask).cpu()), dim=0)
 
+            br_conf_mtxs = dict()
             # for each branch, compute the confusion matrix
             for br_idx, branch in model.branch_dict.items():
-                cm = confusion_matrix(all_trues, branch_preds[br_idx])
-                wandb.log({w_tag + '/' + str(br_idx) + 'confusion_matrix':
-                               wandb_confusion_matrix(confmatrix=cm, labels=class_names)}, commit=False)
+                cm = confusion_matrix(all_trues, branch_preds[br_idx], labels=range(len(classnames)))
+                br_conf_mtxs[str(br_idx) + '/' + 'conf_mtx'] = \
+                    wandb_confusion_matrix(confmatrix=cm, classnames=classnames)
+
+            wandb.log({w_tag + '/' + 'br_conf_mtxs': br_conf_mtxs}, commit=False)
 
         wandb.log({self._step_name: step}, commit=True)
-
         self.logger.info(
             f'==> Test [{step}]:\tTime:{epoch_time.total:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
         return accuracy.avg

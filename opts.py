@@ -21,7 +21,7 @@ def parse_args(args=None):
     # parser.add_argument('--num_passes', type=int, required=True, help='Number of passes to train over the storage')
     # parser.add_argument('--num_loops', type=int, required=True, help='Number of loops over each batch')
     parser.add_argument('--num_pretrain_passes', type=int, default=0, help='Number of passes to train over the storage')
-
+    parser.add_argument('--num_loops', type=int, default=1, help='Number of loops over the current batches during CL')
     parser.add_argument('--regularization', type=str, default='none', choices=['none', 'cutmix'],
                         help='Regularization types')
     parser.add_argument('--model', type=str, required=True, help='Model architecture')
@@ -29,15 +29,17 @@ def parse_args(args=None):
     # parser.add_argument('--width', type=int, default=0, help='Width of a model')
     # parser.add_argument('--seed', type=int, default=0, help='Seed for reproducibility of class-setting etc')
     parser.add_argument('--exp_name', type=str, default='test', help='Experiment name')
-    parser.add_argument('--old_exp_name', type=str, default='test',
+    parser.add_argument('--old_exp_name', type=str, default='',
                         help='Name of experiment to take pretrained model from')
     parser.add_argument('--pretrained_model_name', type=str, default='pretrained_model',
                         help='Name of the pretrained model file.')
 
     # Default experiment options
+    parser.add_argument('--optimizer', type=str, default='sgd', help='Optimizer', choices=['sgd'])
+    parser.add_argument('--scheduler', type=str, default='const', help='Learning rate scheduler', choices=['const', 'cosine', 'exp'])
     parser.add_argument('--maxlr', type=float, default=0.05, help='Starting Learning rate')
-    parser.add_argument('--minlr', type=float, default=0.0005, help='Ending Learning rate')
-    parser.add_argument('--weight_decay', type=float, default=1e-6, help='Weight decay')
+    parser.add_argument('--minlr', type=float, default=0.005, help='Ending Learning rate')
+    parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay')
     parser.add_argument('--refresh_scheduler', action='store_true',
                         help='Refresh learning-rate scheduler when switching from pretraining to incremental')
 

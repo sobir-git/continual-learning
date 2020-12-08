@@ -1,19 +1,16 @@
 import numpy as np
 import wandb
-from sklearn.metrics import confusion_matrix
 import plotly.graph_objs as go
 
 
-def wandb_confusion_matrix(y_true=None, y_pred=None, confmatrix=None, labels=None):
+def wandb_confusion_matrix(confmatrix=None, classnames=None):
     """
     Note: labels should be a list of strings for the corresponding class numbers
     """
-    if confmatrix is None:
-        assert y_pred is not None and y_true is not None
-        confmatrix = confusion_matrix(y_true,
-                                      y_pred)  # i,j refers to number of items in class i predicted to be class j
-    else:
-        confmatrix = confmatrix.copy()
+    confmatrix = confmatrix.copy()  # copy to prevent modifications
+
+    if classnames is not None:
+        assert len(confmatrix) == len(classnames)
 
     # separate the diagonal from the matrix
     confmatrix = confmatrix.astype('float')
@@ -24,10 +21,11 @@ def wandb_confusion_matrix(y_true=None, y_pred=None, confmatrix=None, labels=Non
     n_right = np.sum(confdiag)
     confmatrix[confmatrix == 0] = np.nan
     confdiag[confdiag == 0] = np.nan
-    confmatrix = go.Heatmap({'coloraxis': 'coloraxis1', 'x': labels, 'y': labels[::-1], 'z': np.flipud(confmatrix),
-                             'hoverongaps': False,
-                             'hovertemplate': 'Predicted %{x}<br>Instead of %{y}<br>On %{z} examples<extra></extra>'})
-    confdiag = go.Heatmap({'coloraxis': 'coloraxis2', 'x': labels, 'y': labels[::-1], 'z': np.flipud(confdiag),
+    confmatrix = go.Heatmap(
+        {'coloraxis': 'coloraxis1', 'x': classnames, 'y': classnames[::-1], 'z': np.flipud(confmatrix),
+         'hoverongaps': False,
+         'hovertemplate': 'Predicted %{x}<br>Instead of %{y}<br>On %{z} examples<extra></extra>'})
+    confdiag = go.Heatmap({'coloraxis': 'coloraxis2', 'x': classnames, 'y': classnames[::-1], 'z': np.flipud(confdiag),
                            'hoverongaps': False,
                            'hovertemplate': 'Predicted %{x} just right<br>On %{z} examples<extra></extra>'})
 

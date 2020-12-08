@@ -184,6 +184,8 @@ def load_pretrained_model(opt, model, logger, name='pretrained_model'):
     '''
     Used for loading the pretrained model, not for intermediate breaks in running the code.
     '''
+    if opt.old_exp_name == '':
+        raise
     filepath = opt.log_dir + opt.old_exp_name + f'/{name}.pth.tar'
     assert (os.path.isfile(filepath))
     logger.debug("=> loading checkpoint '{}'".format(filepath))

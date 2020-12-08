@@ -1,4 +1,5 @@
 import time
+
 from utils import Timer
 
 
@@ -54,5 +55,5 @@ class TestTimer:
 
         for i in range(len(self.times)):
             next(t_gen1), next(t_gen2)
-            assert self.almost_equal(self.times[i], timer.values[i*2])
-            assert self.almost_equal(self.times[i], timer.values[i*2+1])
+            assert self.almost_equal(self.times[i], timer.values[i * 2])
+            assert self.almost_equal(self.times[i], timer.values[i * 2 + 1])
