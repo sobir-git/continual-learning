@@ -1,7 +1,9 @@
 from typing import Dict
+from collections import defaultdict
 
 import numpy as np
 import torch
+from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
 import wandb
 
@@ -96,6 +98,7 @@ class Trainer:
         self.logger.info(
             f'==> Train[{step}]:\tTime:{epoch_time.total:.4f}\tData:{data_time.total:.4f}\tLoss:{epoch_loss.avg:.4f}\t')
 
+    @torch.no_grad()
     def test(self, loader, model, mask, class_names, step):
         """Tests the model and return the accuracy"""
         w_tag = self._tag + 'test/'
@@ -107,29 +110,48 @@ class Trainer:
         all_trues = torch.tensor([])
 
         epoch_time = Timer().start()
-        with torch.no_grad():
-            for inputs, labels in loader:
-                # Get outputs
-                inputs, labels = to_device((inputs, labels), self.device)
-                outputs = model(inputs)
-                loss = self.criterion(outputs, labels)
-                losses.update(loss.data, inputs.size(0))
+        for inputs, labels in loader:
+            # Get outputs
+            inputs, labels = to_device((inputs, labels), self.device)
+            outputs = model(inputs)
+            loss = self.criterion(outputs, labels)
+            losses.update(loss.data, inputs.size(0))
 
-                # Measure accuracy
-                probs = torch.softmax(outputs, dim=1)
-                acc = get_accuracy(probs, labels, mask)
-                accuracy.update(acc, labels.size(0))
+            # Measure accuracy
+            probs = torch.softmax(outputs, dim=1)
+            acc = get_accuracy(probs, labels, mask)
+            accuracy.update(acc, labels.size(0))
 
-                all_preds = torch.cat((all_preds, get_prediction(probs, mask=mask).cpu()), dim=0)
-                all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
+            all_preds = torch.cat((all_preds, get_prediction(probs, mask=mask).cpu()), dim=0)
+            all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
         epoch_time.finish()
 
         wandb.log(
             {
-                w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, self._step_name: step,
-                **wandb_confusion_matrix(all_trues, all_preds, labels=class_names)
-            }
+                w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg,
+                w_tag + 'confusion_matrix': wandb_confusion_matrix(all_trues, all_preds, labels=class_names)
+            },
+            commit=False
         )
+        if isinstance(model, models.bnet_base.BranchNet):
+            branch_preds = defaultdict(lambda: torch.tensor([]))
+            all_trues = torch.tensor([])
+            # go through all batches and gather the branch outputs
+            for inputs, labels in loader:
+                inputs, labels = to_device((inputs, labels), self.device)
+                all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
+                for br_idx, probs in model.full_forward(inputs):
+                    branch_preds[br_idx] = torch.cat(
+                        (branch_preds[br_idx], get_prediction(probs, mask=mask).cpu()), dim=0)
+
+            # for each branch, compute the confusion matrix
+            for br_idx, branch in model.branch_dict.items():
+                cm = confusion_matrix(all_trues, branch_preds[br_idx])
+                wandb.log({w_tag + '/' + str(br_idx) + 'confusion_matrix':
+                               wandb_confusion_matrix(confmatrix=cm, labels=class_names)}, commit=False)
+
+        wandb.log({self._step_name: step}, commit=True)
+
         self.logger.info(
             f'==> Test [{step}]:\tTime:{epoch_time.total:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
         return accuracy.avg
