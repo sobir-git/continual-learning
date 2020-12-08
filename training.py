@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 import wandb
 
 import models.bnet_base
-from utils import AverageMeter, get_accuracy, to_device, Timer, get_prediction
+from utils import AverageMeter, get_accuracy, to_device, Timer, get_prediction, wandb_confusion_matrix
 
 
 class Trainer:
@@ -124,8 +124,12 @@ class Trainer:
                 all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
         epoch_time.finish()
 
-        wandb.sklearn.plot_confusion_matrix(all_trues, all_preds, labels=class_names)
-        wandb.log({w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, self._step_name: step})
+        wandb.log(
+            {
+                w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg, self._step_name: step,
+                **wandb_confusion_matrix(all_trues, all_preds, labels=class_names)
+            }
+        )
         self.logger.info(
             f'==> Test [{step}]:\tTime:{epoch_time.total:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
         return accuracy.avg

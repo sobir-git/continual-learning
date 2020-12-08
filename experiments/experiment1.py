@@ -26,7 +26,7 @@ def schedule_lr(opt, optimizer, scheduler, epoch):
 
 
 def exp1(opt):
-    model = getattr(models.concrete.single, opt.model)(opt).to(device)
+    model = getattr(models.concrete, opt.model)(opt).to(device)
     if opt.watch:
         wandb.watch(model)
     wandb.run.summary['model_graph:'] = str(model)
