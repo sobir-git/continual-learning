@@ -37,8 +37,8 @@ def parse_args(args=None):
     # Default experiment options
     parser.add_argument('--optimizer', type=str, default='sgd', help='Optimizer', choices=['sgd'])
     parser.add_argument('--scheduler', type=str, default='const', help='Learning rate scheduler', choices=['const', 'cosine', 'exp'])
-    parser.add_argument('--maxlr', type=float, default=0.05, help='Starting Learning rate')
-    parser.add_argument('--minlr', type=float, default=0.005, help='Ending Learning rate')
+    parser.add_argument('--maxlr', type=float, default=0.001, help='Starting Learning rate')
+    parser.add_argument('--minlr', type=float, default=0.0001, help='Ending Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay')
     parser.add_argument('--refresh_scheduler', action='store_true',
                         help='Refresh learning-rate scheduler when switching from pretraining to incremental')
