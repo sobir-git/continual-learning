@@ -123,11 +123,13 @@ class BranchNet(nn.Module):
 
 
 class BnetTrainer(TrainerBase):
+    _default_criterion = torch.nn.CrossEntropyLoss(reduction='none')
     beta = 0.
 
     def __init__(self, opt, model: BranchNet, logger: Logger, device, optimizer, lel_function=F.mse_loss):
         super().__init__(opt, model, logger, device, optimizer)
         self.lel_function = lel_function
+        self.criterion = self._default_criterion
 
     def get_branch_probs(self, cross_entropy_loss, est_loss):
         """Return probabilities of selecting branches given their classification losses."""
@@ -165,7 +167,7 @@ class BnetTrainer(TrainerBase):
         # construct cross-entropy losses for all sample, batch pairs
         cross_entropy_loss = []
         for br_idx in range(B):
-            loss_ = F.nll_loss(F.log_softmax(outputs[:, br_idx, :], dim=1), y, reduction='none')  # (N,)
+            loss_ = self.criterion(outputs[:, br_idx, :], y)  # (N,)
             cross_entropy_loss.append(loss_)
         cross_entropy_loss = torch.stack(cross_entropy_loss, 1)  # (N,B)
 
@@ -205,6 +207,9 @@ class BnetTrainer(TrainerBase):
         """
         self._before_train()
 
+        def get_averages(d):
+            return {k: v.avg for k, v in d.items()}
+
         B = len(self.model.branches)
         device = self.device
         data_time = Timer()  # the time it takes for forward+backward+step
@@ -216,14 +221,14 @@ class BnetTrainer(TrainerBase):
             for batch_idx, (inputs, labels) in enumerate(data_time.get_timed_generator(dataloader)):
                 inputs, label = inputs.to(device), labels.to(device)
                 cross_entropy_loss, branch_mask, lel = self._train(inputs, labels)
-                clf_losses['main'].update((cross_entropy_loss * branch_mask).mean(), inputs.size(0))
+                clf_losses['main'].update((cross_entropy_loss * branch_mask).sum() / branch_mask.sum(), inputs.size(0))
                 for br_idx in range(B):
                     clf_losses[str(br_idx)].update(cross_entropy_loss[:, br_idx].mean(), inputs.size(0))
                     le_losses[str(br_idx)].update(lel[:, br_idx].mean(), inputs.size(0))
 
                 if batch_idx % log_every == 0:
                     self.logger.log(
-                        {'clf_losses': clf_losses, 'le_losses': le_losses,
+                        {'clf_losses': get_averages(clf_losses), 'le_losses': get_averages(le_losses),
                          'percent': (batch_idx + 1) / len(dataloader)}, commit=True)
                     # reset meters
                     for meter in itertools.chain(clf_losses.values(), le_losses.values()):
@@ -261,12 +266,12 @@ class BnetTrainer(TrainerBase):
             # ==== main prediction
             # for each sample select the branch with minimum estimated loss
             branch_ids = torch.argmin(estimated_losses, 1)  # (N, 1)
-            assert branch_ids.shape == (inputs.size(0), 1)
+            assert branch_ids.shape == (inputs.size(0),)
             main_output = []
             for i in range(inputs.size(0)):  # N
                 main_output.append(outputs[i, branch_ids[i], :])  # (C,)
             main_output = torch.stack(main_output, 0)  # (N, C)
-            main_loss_meter.update(self.criterion(main_output, labels), inputs.size(0))
+            main_loss_meter.update(self.criterion(main_output, labels).mean(), inputs.size(0))
             predictions[-1].extend(get_prediction(y_prob=torch.softmax(main_output, 1), mask=mask))
 
             # ==== update loss-estimation heatmap
@@ -285,7 +290,8 @@ class BnetTrainer(TrainerBase):
 
         accuracies = self.logger.log_accuracies(confusion_matrices, classnames)
         # report estimated_losses for each branch-class pair
-        self.logger.log_heatmap('estimated_loss', data=loss_est_heatmap, rows=classnames, columns=[str(i) for i in range(B)],
+        self.logger.log_heatmap('estimated_loss', data=loss_est_heatmap, rows=classnames,
+                                columns=[str(i) for i in range(B)],
                                 title='Average estimated loss per class', vmin=0)
         # report classification loss
         self.logger.log({'clf_loss': main_loss_meter.avg})

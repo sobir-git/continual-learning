@@ -83,6 +83,7 @@ class TestBranchNet:
 @pytest.fixture
 def trainer(opt, branchnet):
     logger = Mock()
+    logger.log_accuracies = Mock(return_value={'main': 0.8})
     optimizer = torch.optim.SGD(branchnet.parameters(), lr=0.01)
     return BnetTrainer(opt, model=branchnet, logger=logger, device=torch.device('cpu'), optimizer=optimizer)
 
@@ -116,8 +117,8 @@ class TestBnetTrainer:
         assert isinstance(data_time, float) and data_time > 0
 
     def test_test(self, trainer, vision_dataset):
-        datatime = trainer.train(vision_dataset.pretest_loader)
-        assert isinstance(datatime, float) and datatime > 0
+        clf_loss, accuracy = trainer.test(vision_dataset.pretest_loader, vision_dataset.class_names, mask=torch.ones(10))
+        assert clf_loss, accuracy
 
     def test_backprop(self, trainer: BnetTrainer, fake_input):
         # it's just a weak test

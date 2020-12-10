@@ -21,12 +21,18 @@ def plotly_heatmap(data, rows=None, columns=None):
     return fig
 
 
-def recurse_dict(d, pref=''):
+def traverse_dict(d, pref=None):
+    """
+    Traverses nested dictionary returning nested keys and value pairs;
+    """
+    if pref is None:
+        pref = []
     for key, val in d.items():
+        key = pref + [key]
         if not isinstance(val, dict):
-            yield pref + key, val
+            yield key, val
         else:
-            yield from recurse_dict(val, pref=pref + key + '.')
+            yield from traverse_dict(val, pref=key)
 
 
 def dict_deep_update(d, u):
@@ -71,7 +77,10 @@ class Logger:
     def _console_commit(self):
         # traverse d and log everything that is text
         msg = f'[{self.pref_str}]\t'
-        for key, val in recurse_dict(self._data):
+        for keys, val in traverse_dict(self._data):
+            # remove prefs from keys
+            keys = keys[len(self.prefs):]
+            key = '.'.join(keys)
             if type(val) in (float,):
                 str_val = f'{val:.3f}'
             else:

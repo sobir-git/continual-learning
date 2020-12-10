@@ -7,7 +7,7 @@ import wandb
 from sklearn.metrics import confusion_matrix
 import webbrowser
 
-from logger import Logger
+from logger import Logger, traverse_dict
 
 from .common import *
 
@@ -75,3 +75,14 @@ class TestLogger:
         assert 'b' in msg and 'True' in msg
         assert 'mock' not in msg
         print(msg)
+
+
+def test_traverse_dict():
+    d = {'a': {'0': 0, '1': 1, 'two': {'2': 2}}, 'b': -1}
+    x = list(traverse_dict(d))
+    assert x == [
+        (['a', '0'], 0),
+        (['a', '1'], 1),
+        (['a', 'two', '2'], 2),
+        (['b'], -1)
+    ]
