@@ -1,9 +1,6 @@
-from unittest.mock import Mock
-
-import torch
-
 from training import StandardTrainer
 from .common import *
+from .test_dataloader import *
 
 
 @pytest.fixture
@@ -25,25 +22,19 @@ def simple_classifier():
     )
 
 
-@pytest.fixture
-def trainer(opt):
-    logger, device = Mock(), torch.device('cpu')
-    return StandardTrainer(opt, logger, device, type='pre')
+def test_train(opt, simple_classifier, vision_dataset):
+    loader = partial_dataloader(vision_dataset.pretrain_loader, 10)  # a small loader with three batches
+    optimizer = torch.optim.SGD(simple_classifier.parameters(), lr=0.001)
+    trainer = StandardTrainer(opt, model=simple_classifier, optimizer=optimizer, logger=Mock(),
+                              device=torch.device('cpu'))
+    data_time = trainer.train(loader, num_loops=2)
+    assert isinstance(data_time, float) and data_time > 0
 
 
-def test_train(opt, trainer, simple_classifier, monkeypatch):
-    import wandb
-    n_samples = 280
-    opt.batch_size = 4
-    monkeypatch.setattr(wandb, 'log', print)
-    loader = Mock()
-    universal_inp = torch.randn(opt.batch_size, 3, 32, 32)
-    labels = torch.randint(0, 10, (opt.batch_size,))
-    loader.__len__ = Mock(return_value=n_samples)
-    loader.__iter__ = Mock(return_value=((universal_inp, labels) for _ in range(len(loader))))
-
-    trainer.train(dataloader=loader, optimizer=Mock(), model=simple_classifier, step=1)
-
-
-def test_test(trainer):
-    assert False
+def test_test(opt, simple_classifier, vision_dataset):
+    loader = partial_dataloader(vision_dataset.pretest_loader, 3)  # a small loader with three batches
+    optimizer = torch.optim.SGD(simple_classifier.parameters(), lr=0.001)
+    trainer = StandardTrainer(opt, model=simple_classifier, optimizer=optimizer, logger=Mock(),
+                              device=torch.device('cpu'))
+    loss, accuracy = trainer.test(loader, Mock(), torch.ones(10))
+    assert loss and accuracy

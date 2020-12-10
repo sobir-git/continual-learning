@@ -65,8 +65,8 @@ class TestLossEstimator:
 
 
 class TestBranch:
-    def test_out_and_est_loss(self, opt, stem, fake_base_out):
-        branch = Branch(opt, stem, in_shape=BASE_OUT_SHAPE)
+    def test_out_and_est_loss(self, opt, fake_base_out):
+        branch = new_branch(opt)
         output, est_loss = branch.out_and_est_loss(fake_base_out)
         assert output.shape == (BATCH_SIZE, NUM_CLASSES)
         assert est_loss.shape == (BATCH_SIZE, 1)
@@ -79,10 +79,12 @@ class TestBranchNet:
         assert outputs.shape == (BATCH_SIZE, B, NUM_CLASSES)
         assert estimation_losses.shape == (BATCH_SIZE, B)
 
+
 @pytest.fixture
 def trainer(opt, branchnet):
     logger = Mock()
-    return BnetTrainer(opt, model=branchnet, logger=logger)
+    optimizer = torch.optim.SGD(branchnet.parameters(), lr=0.01)
+    return BnetTrainer(opt, model=branchnet, logger=logger, device=torch.device('cpu'), optimizer=optimizer)
 
 
 class TestBnetTrainer:
@@ -109,7 +111,7 @@ class TestBnetTrainer:
         assert torch.allclose(branch_mask, branch_mask ** 2), "Branch mask should be binary mask"
 
     def test_train(self, trainer, vision_dataset):
-        loader = partial_dataloader(vision_dataset.pretrain_loader, 10)   # a small loader with three batches
+        loader = partial_dataloader(vision_dataset.pretrain_loader, 10)  # a small loader with three batches
         data_time = trainer.train(loader, num_loops=2)
         assert isinstance(data_time, float) and data_time > 0
 
@@ -120,7 +122,7 @@ class TestBnetTrainer:
     def test_backprop(self, trainer: BnetTrainer, fake_input):
         # it's just a weak test
         outputs, estimated_losses = trainer.model.forward(fake_input)
-        cross_entropy_loss = outputs.mean(2).clone()   # just because
+        cross_entropy_loss = outputs.mean(2).clone()  # just because
         assert cross_entropy_loss.shape == (BATCH_SIZE, len(trainer.model.branches)) == estimated_losses.shape
         lel = trainer.lel_function(cross_entropy_loss, estimated_losses, reduction='none')  # ok this is fine
         branch_mask = torch.randint_like(cross_entropy_loss, low=0, high=1)
