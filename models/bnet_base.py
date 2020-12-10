@@ -134,7 +134,7 @@ class BnetTrainer(TrainerBase):
     def get_branch_probs(self, cross_entropy_loss, est_loss):
         """Return probabilities of selecting branches given their classification losses."""
         assert cross_entropy_loss.shape == est_loss.shape
-        losses = (cross_entropy_loss + self.beta * est_loss).detach().cpu().numpy()
+        losses = (est_loss + self.beta * cross_entropy_loss).detach().cpu().numpy()
 
         # always be safe from zero division
         losses += 1e-16
@@ -278,7 +278,16 @@ class BnetTrainer(TrainerBase):
             for i in range(inputs.size(0)):
                 cls = labels[i]
                 loss_est_heatmap[cls, :] += estimated_losses[i, :]
-            trues.extend(labels)
+            # normalize
+            trues.append(labels)
+
+        trues = torch.cat(trues)
+
+        # normalize
+        cls_counter = torch.bincount(trues)
+        cls_counter = torch.cat((cls_counter, torch.zeros(len(classnames) - len(cls_counter))))
+        cls_counter[cls_counter == 0] = 1  # replace zero to prevent zero division error
+        loss_est_heatmap = loss_est_heatmap / cls_counter.view(-1, 1)
 
         # ==== for each main + branches predictions
         # report confusion matrix and accuracies/recalls

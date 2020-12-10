@@ -117,7 +117,8 @@ class TestBnetTrainer:
         assert isinstance(data_time, float) and data_time > 0
 
     def test_test(self, trainer, vision_dataset):
-        clf_loss, accuracy = trainer.test(vision_dataset.pretest_loader, vision_dataset.class_names, mask=torch.ones(10))
+        loader = partial_dataloader(vision_dataset.pretest_loader, 2)
+        clf_loss, accuracy = trainer.test(loader, vision_dataset.class_names, mask=torch.ones(10))
         assert clf_loss, accuracy
 
     def test_backprop(self, trainer: BnetTrainer, fake_input):
