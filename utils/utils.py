@@ -1,7 +1,10 @@
+import copy
+
+
 class AverageMeter:
-    def __init__(self):
-        self.n = 0
-        self.sum = 0
+    def __init__(self, init=0.):
+        self._init = copy.deepcopy(init)
+        self.reset()
 
     @property
     def avg(self):
@@ -10,6 +13,8 @@ class AverageMeter:
         return self.sum / self.n
 
     def update(self, value, n=1):
+        if isinstance(value, torch.Tensor) and value.dim() == 0:
+            value = value.item()
         self.sum = self.sum + value * n
         self.n += n
 
@@ -45,11 +50,13 @@ class Timer(object):
 
     def get_timed_callable(self, f):
         assert callable(f)
+
         def f_(*args, **kwargs):
             self.start()
             r = f(*args, **kwargs)
             self.finish()
             return r
+
         return f_
 
     def get_timed_generator(self, gen):
@@ -68,6 +75,7 @@ class Timer(object):
         Returns:
             New generator object that records its execution times to this timer.
         """
+
         def new_gen():
             it = iter(gen)
             while True:
@@ -118,7 +126,7 @@ import os
 import logging
 
 
-def get_logger(folder):
+def get_console_logger(folder):
     # global logger
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
@@ -138,19 +146,11 @@ def get_logger(folder):
 
 
 def get_prediction(y_prob, mask=None):
+    """Warning: make sure y_probs are non-negatives (like in softmax)"""
     if mask is not None:
         y_prob = torch.mul(y_prob, mask)
     y_pred = torch.argmax(y_prob, 1)
     return y_pred
-
-
-def get_accuracy(y_prob, y_true, mask=None):
-    '''
-    Calculates the task and class incremental accuracy of the model
-    '''
-    y_pred_masked = get_prediction(y_prob, mask=mask)
-    acc_masked = torch.eq(y_pred_masked, y_true)
-    return (acc_masked * 1.0).mean()
 
 
 def seed_everything(seed):

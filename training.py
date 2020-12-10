@@ -1,161 +1,135 @@
-from typing import Dict
-from collections import defaultdict
-
-import numpy as np
 import torch
 from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
-import wandb
 
-import models.bnet_base
-from utils import AverageMeter, get_accuracy, to_device, Timer, get_prediction, wandb_confusion_matrix
+from logger import Logger
+from utils import AverageMeter, Timer, get_prediction
 
 
-class Trainer:
+class TrainerBase:
+    def __init__(self, opt, model, logger: Logger, device, optimizer):
+        self.optimizer = optimizer
+        self.opt = opt
+        self.model = model
+        self.logger = logger
+        self.device = device
+
+    def _before_train(self):
+        self.logger.push_pref('train')
+        self.model.train()
+
+    def _after_train(self):
+        self.logger.pop_pref()
+
+    def _before_test(self):
+        self.logger.push_pref('test')
+        self.model.eval()
+
+    def _after_test(self):
+        self.logger.pop_pref()
+
+    def _get_log_every(self, n_batches):
+        return n_batches // 5
+
+    def set_logger(self, logger: Logger):
+        self.logger = logger
+
+    def train(self, loader, n_loops):
+        raise NotImplementedError
+
+    def test(self, loader: DataLoader, classnames, mask):
+        raise NotImplementedError
+
+
+class StandardTrainer(TrainerBase):
     _default_criterion = torch.nn.CrossEntropyLoss()
 
-    def __init__(self, opt, logger, device, type, criterion=None):
-        self.opt = opt
-        self.logger = logger
-        self.type = type
+    def __init__(self, opt, logger: Logger, model, device, optimizer, criterion=None):
+        super().__init__(opt, model, logger, device, optimizer)
         assert not opt.regularization == 'cutmix', "we cannot apply cutmix"
-        self.device = device
         self.criterion = (criterion if criterion else self._default_criterion).to(device)
-        if type in ['cl', 'pre']:
-            self._tag = type + '/'
-            self._step_name = 'epoch' if type == 'pre' else 'phase'
-        else:
-            raise ValueError('Type should be on of cl or pre')
 
-    def train(self, loader: DataLoader, optimizer, model, step, branch_idx=None):
+    def _train(self, x, y):
         """
-        This trains either:
-            - one epoch for pretraining
-            - one phase for continual learning
-                - in this case there is option to loop over the data multiple times (opt.num_loops)
+        Trains the model with given the given batch (x, y). Assumes x, y are in the same device as the model
+        Args:
+            x: input
+            y: labels
 
-            In both cases either epoch number of phase number is given, just for the purpose of logging.
+        Returns:
+            Loss (single number)
         """
-        w_tag = self._tag + 'train/'  # tag to preprend wandb metric name
-        is_bnet = isinstance(model, models.bnet_base.BranchNet)
-        datasize = len(loader)
-        log_every = min(np.ceil(datasize / 5), max(np.ceil(datasize / 20), 1000))  # log every n batches
-        model.train()
-        # create metrics
-        _mn = ['loss']
-        if is_bnet:
-            _mn.append('clf_loss')
-            _mn.extend('lel' + str(i) for i in range(len(model.branches)))
-        metrics: Dict[str, AverageMeter] = {name: AverageMeter() for name in _mn}
+        output = self.model(x)
+        loss = self.criterion(output, y)
 
-        # create timers
-        epoch_time = Timer()  # the time it takes for one epoch
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt.clip)  # Always be safe than sorry
+        self.optimizer.step()
+
+        return loss
+
+    def train(self, dataloader: DataLoader, num_loops=1):
+        """
+        Trains the model on the given dataloader for num_loops passes.
+        Args:
+            dataloader:
+            num_loops: number of passes over the dataloader
+
+        Returns:
+            The total time it took for data-loading/processing stuff.
+        """
+        self._before_train()
+
+        device = self.device
+
         data_time = Timer()  # the time it takes for forward+backward+step
-        epoch_loss = AverageMeter()
+        loss_meter = AverageMeter()
+        log_every = self._get_log_every(len(dataloader))
 
-        epoch_time.start()
-        num_loops = self.opt.num_loops if self.type == 'cl' else 1  # for CL we can loop many times over the batches
         for i in range(num_loops):
-            for batch_idx, (inputs, labels) in enumerate(data_time.get_timed_generator(loader), start=1):
+            for batch_idx, (inputs, labels) in enumerate(data_time.get_timed_generator(dataloader)):
+                inputs, label = inputs.to(device), labels.to(device)
+                loss = self._train(inputs, labels)
+                loss_meter.update(loss, inputs.size(0))
 
-                # Tweak inputs
-                with data_time:
-                    inputs, labels = to_device((inputs, labels), self.device)
-
-                # forward + backward + optimize
-                if is_bnet:
-                    loss, lels, clf_loss = model.loss(inputs, labels, branch_idx=branch_idx)
-                else:
-                    outputs = model(inputs)
-                    loss = self.criterion(outputs, labels)
-
-                optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), self.opt.clip)  # Always be safe than sorry
-                optimizer.step()
-
-                # Log losses
-                metrics['loss'].update(loss.item())
-                epoch_loss.update(loss.item())
-                if is_bnet:
-                    metrics['clf_loss'].update(clf_loss.item())
-                    for j in range(len(lels)):
-                        metrics['lel' + str(j)].update(lels[j].item())
-
-                # print statistics
                 if batch_idx % log_every == 0:
-                    wandb.log({
-                        **{w_tag + k: v.avg for k, v in metrics.items()},
-                        **{self._step_name: step}})
-                    msg = f'[{step}, {batch_idx / datasize * 100:.0f}%]\t' + \
-                          '\t '.join(f'{k}: {metrics[k].avg:.3f}' for k in metrics.keys())
-                    self.logger.info(msg)
+                    self.logger.log({'loss': loss_meter.avg, 'percent': (batch_idx + 1) / len(dataloader)}, commit=True)
+                    # reset meters
+                    loss_meter.reset()
 
-                    # reset metrics
-                    for v in metrics.values():
-                        v.reset()
-
-        epoch_time.finish()
-        self.logger.info(
-            f'==> Train[{step}]:\tTime:{epoch_time.total:.4f}\tData:{data_time.total:.4f}\tLoss:{epoch_loss.avg:.4f}\t')
+        self._after_train()
+        return data_time.total
 
     @torch.no_grad()
-    def test(self, loader, model, mask, classnames, step):
-        """Tests the model and return the accuracy"""
-        w_tag = self._tag + 'test/'
+    def test(self, loader: DataLoader, classnames, mask):
+        """
+        Test the model.
+        Returns loss, accuracy.
+        """
 
-        model.eval()
-        losses, accuracy = AverageMeter(), AverageMeter()
-        mask = to_device(mask, self.device)
-        all_preds = torch.tensor([])
-        all_trues = torch.tensor([])
+        self._before_test()
+        device = self.device
 
-        epoch_time = Timer().start()
+        # holds predictions of main(combined) and indiviual branches
+        trues = []
+        preds = []
+        loss_meter = AverageMeter()
         for inputs, labels in loader:
-            # Get outputs
-            inputs, labels = to_device((inputs, labels), self.device)
-            outputs = model(inputs)
-            loss = self.criterion(outputs, labels)
-            losses.update(loss.data, inputs.size(0))
+            inputs, labels = inputs.to(device), labels.to(device)
+            output = self.model(inputs)
+            loss_meter.update(self.criterion(output, labels), inputs.size(0))
 
-            # Measure accuracy
-            probs = torch.softmax(outputs, dim=1)
-            acc = get_accuracy(probs, labels, mask)
-            accuracy.update(acc, labels.size(0))
+            probs = torch.softmax(output, 1)
+            preds.extend(get_prediction(probs, mask))
+            trues.extend(labels)
 
-            all_preds = torch.cat((all_preds, get_prediction(probs, mask=mask).cpu()), dim=0)
-            all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
-        epoch_time.finish()
+        # report confusion matrix, accuracies, recalls
+        confmatrix = confusion_matrix(trues, preds)
+        self.logger.log_confusion_matrix(confmatrix, classnames)
+        accuracy = self.logger.log_accuracies(confmatrix, classnames)
+        loss = self.logger.log({'loss': loss_meter.avg})
+        self.logger.commit()
 
-        cm = confusion_matrix(all_trues, all_preds, labels=range(len(classnames)))
-        wandb.log(
-            {
-                w_tag + 'loss': losses.avg, w_tag + 'acc': accuracy.avg,
-                w_tag + 'conf_mtx': wandb_confusion_matrix(confmatrix=cm, classnames=classnames)
-            },
-            commit=False
-        )
-        if isinstance(model, models.bnet_base.BranchNet):
-            branch_preds = defaultdict(lambda: torch.tensor([]))
-            all_trues = torch.tensor([])
-            # go through all batches and gather the branch outputs
-            for inputs, labels in loader:
-                inputs, labels = to_device((inputs, labels), self.device)
-                all_trues = torch.cat((all_trues, labels.cpu()), dim=0)
-                for br_idx, probs in model.full_forward(inputs):
-                    branch_preds[br_idx] = torch.cat(
-                        (branch_preds[br_idx], get_prediction(probs, mask=mask).cpu()), dim=0)
-
-            br_conf_mtxs = dict()
-            # for each branch, compute the confusion matrix
-            for br_idx, branch in model.branch_dict.items():
-                cm = confusion_matrix(all_trues, branch_preds[br_idx], labels=range(len(classnames)))
-                br_conf_mtxs[str(br_idx) + '/' + 'conf_mtx'] = \
-                    wandb_confusion_matrix(confmatrix=cm, classnames=classnames)
-
-            wandb.log({w_tag + '/' + 'br_conf_mtxs': br_conf_mtxs}, commit=False)
-
-        wandb.log({self._step_name: step}, commit=True)
-        self.logger.info(
-            f'==> Test [{step}]:\tTime:{epoch_time.total:.4f}\tLoss:{losses.avg:.4f}\tAcc:{accuracy.avg:.4f}')
-        return accuracy.avg
+        self._after_test()
+        return loss, accuracy

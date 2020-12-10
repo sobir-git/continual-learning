@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import torch
 
-from training import Trainer
+from training import StandardTrainer
 from .common import *
 
 
@@ -28,7 +28,7 @@ def simple_classifier():
 @pytest.fixture
 def trainer(opt):
     logger, device = Mock(), torch.device('cpu')
-    return Trainer(opt, logger, device, type='pre')
+    return StandardTrainer(opt, logger, device, type='pre')
 
 
 def test_train(opt, trainer, simple_classifier, monkeypatch):
@@ -42,7 +42,7 @@ def test_train(opt, trainer, simple_classifier, monkeypatch):
     loader.__len__ = Mock(return_value=n_samples)
     loader.__iter__ = Mock(return_value=((universal_inp, labels) for _ in range(len(loader))))
 
-    trainer.train(loader=loader, optimizer=Mock(), model=simple_classifier, step=1)
+    trainer.train(dataloader=loader, optimizer=Mock(), model=simple_classifier, step=1)
 
 
 def test_test(trainer):

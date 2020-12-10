@@ -3,9 +3,11 @@ import wandb
 import plotly.graph_objs as go
 
 
-def wandb_confusion_matrix(confmatrix=None, classnames=None):
+def wandb_confusion_matrix(confmatrix=None, classnames=None, title=None):
     """
     Note: labels should be a list of strings for the corresponding class numbers
+    Arguments:
+        confmatrix: confusion matrix whose i,j entry denotes class i was predicted as j (like sklearn.confusion_matrix)
     """
     confmatrix = confmatrix.copy()  # copy to prevent modifications
 
@@ -44,7 +46,7 @@ def wandb_confusion_matrix(confmatrix=None, classnames=None):
     xaxis = {'title': {'text': 'y_pred'}, 'showticklabels': True, 'side': 'top'}
     yaxis = {'title': {'text': 'y_true'}, 'showticklabels': True}
 
-    fig.update_layout(title={'text': 'Confusion matrix', 'x': 0.5}, paper_bgcolor=transparent,
+    fig.update_layout(title={'text': title, 'x': 0.5}, paper_bgcolor=transparent,
                       plot_bgcolor=transparent, xaxis=xaxis, yaxis=yaxis)
 
     return wandb.data_types.Plotly(fig)
