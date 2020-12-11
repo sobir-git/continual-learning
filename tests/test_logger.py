@@ -86,3 +86,12 @@ def test_traverse_dict():
         (['a', 'two', '2'], 2),
         (['b'], -1)
     ]
+
+    # test with skip_fn
+    skip_fn = lambda d: '2' in d
+    x1 = list(traverse_dict(d, skip_fn))
+    assert x1 == [
+        (['a', '0'], 0),
+        (['a', '1'], 1),
+        (['b'], -1)
+    ]

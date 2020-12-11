@@ -78,7 +78,8 @@ def exp1(opt):
                 scheduler = create_scheduler(opt, optimizer, opt.num_pretrain_passes)
 
             for epoch in range(1, opt.num_pretrain_passes + 1):
-                logger.log({'learning_rate': scheduler.get_last_lr()[0], 'epoch': epoch}, commit=True)
+                logger.set_epoch(epoch)
+                logger.log({'learning_rate': scheduler.get_last_lr()[0]}, commit=True)
                 with timer:
                     trainer.train(vd.pretrain_loader)
                 console_logger.info(f'Epoch time: {timer.values[-1]:.1f}s')
@@ -106,7 +107,8 @@ def exp1(opt):
 
         for phase, (trainloader, testloader, class_list, phase_mask) in enumerate(dataloaders, start=1):
             console_logger.info(f'==> Phase {phase}: learning classes {", ".join(map(str, class_list))}')
-            logger.log({'learning_rate': scheduler.get_last_lr()[0], 'phase': phase}, commit=True)
+            logger.set_epoch(phase)
+            logger.log({'learning_rate': scheduler.get_last_lr()[0]}, commit=True)
             with timer:
                 trainer.train(dataloader=trainloader, num_loops=opt.num_loops)
                 console_logger.info(f'Phase time: {timer.values[-1]:.1f}')

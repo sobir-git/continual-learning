@@ -1,5 +1,6 @@
 import collections
 
+import torch
 import wandb
 import numpy as np
 
@@ -21,18 +22,20 @@ def plotly_heatmap(data, rows=None, columns=None):
     return fig
 
 
-def traverse_dict(d, pref=None):
+def traverse_dict(d, skip_fn=lambda d: False, pref=None):
     """
     Traverses nested dictionary returning nested keys and value pairs;
     """
+    if skip_fn(d):
+        return
     if pref is None:
         pref = []
     for key, val in d.items():
         key = pref + [key]
-        if not isinstance(val, dict):
-            yield key, val
+        if isinstance(val, dict):
+            yield from traverse_dict(val, skip_fn=skip_fn, pref=key)
         else:
-            yield from traverse_dict(val, pref=key)
+            yield key, val
 
 
 def dict_deep_update(d, u):
@@ -63,6 +66,7 @@ def dict_deep_update(d, u):
 
 class Logger:
     _image_heatmaps = True
+    epoch = None
 
     def __init__(self, opt, console_logger, pref=None):
         self.opt = opt
@@ -70,22 +74,51 @@ class Logger:
         self.console = console_logger
         self._data = dict()
 
+    def set_epoch(self, epoch):
+        """This affects everything afterwards logged with epoch."""
+        self.epoch = epoch
+
+    def remove_epoch(self):
+        self.epoch = None
+
     @property
     def pref_str(self):
         return '.'.join(self.prefs)
 
+    def _make_consolable(self, val):
+        if isinstance(val, torch.Tensor):
+            try:
+                val = val.item()
+            except Exception:
+                return None
+        if type(val) not in (int, float, str, tuple, list):
+            if 'float' not in str(type(val)):
+                return None
+        if type(val) in (float,):
+            str_val = f'{val:.3f}'
+        else:
+            str_val = str(val)
+        if str_val[0] + str_val[-1] == '<>':
+            return None
+        if len(str_val) > 16:
+            return None
+        return str_val
+
     def _console_commit(self):
         # traverse d and log everything that is text
-        msg = f'[{self.pref_str}]\t'
-        for keys, val in traverse_dict(self._data):
+        msg = f'[{self.pref_str}'
+        if self.epoch is not None:
+            msg += ' ' + str(self.epoch)
+        msg += ']\t'
+
+        skip_function = lambda d: len(set(d.keys()).intersection(('_type', 'path'))) > 1
+
+        for keys, val in traverse_dict(self._data, skip_fn=skip_function):
             # remove prefs from keys
             keys = keys[len(self.prefs):]
             key = '.'.join(keys)
-            if type(val) in (float,):
-                str_val = f'{val:.3f}'
-            else:
-                str_val = str(val)
-            if str_val[0] + str_val[-1] != '<>' and len(str_val) < 20:
+            str_val = self._make_consolable(val)
+            if str_val is not None:
                 msg += f'{key}: {str_val},\t'
         self.console.info(msg)
         return msg
@@ -95,6 +128,20 @@ class Logger:
 
     def pop_pref(self):
         self.prefs.pop()
+
+    def commit(self):
+        if not self._data:
+            return # nothing to commit
+        w_data = self._data
+        if self.epoch is not None:
+            w_data = {'epoch': self.epoch, **w_data}
+        wandb.log(w_data, commit=True)
+        self._console_commit()
+        self._data.clear()
+
+    def _commit_if(self, commit):
+        if commit:
+            self.commit()
 
     def log_heatmap(self, name, data, rows=None, columns=None, title=None, vmax=None, vmin=None):
         if self._image_heatmaps:
@@ -139,10 +186,6 @@ class Logger:
         self.log_heatmap('recalls', recall_data, rows=classnames, columns=columns, title='Recalls', vmin=0, vmax=1)
         return accuracies
 
-    def _commit_if(self, commit):
-        if commit:
-            self.commit()
-
     def log_accuracies(self, confmatrix, classnames, commit=False):
         """
         Reports accuracy(s) and recall(s).
@@ -167,8 +210,3 @@ class Logger:
                 d = {pref: d}
         dict_deep_update(self._data, d)
         self._commit_if(commit)
-
-    def commit(self):
-        wandb.log(self._data, commit=True)
-        self._console_commit()
-        self._data.clear()

@@ -19,6 +19,7 @@ class TrainerBase:
         self.model.train()
 
     def _after_train(self):
+        self.logger.commit()
         self.logger.pop_pref()
 
     def _before_test(self):
@@ -26,6 +27,7 @@ class TrainerBase:
         self.model.eval()
 
     def _after_test(self):
+        self.logger.commit()
         self.logger.pop_pref()
 
     def _get_log_every(self, n_batches):
@@ -129,7 +131,6 @@ class StandardTrainer(TrainerBase):
         self.logger.log_confusion_matrix(confmatrix, classnames)
         accuracy = self.logger.log_accuracies(confmatrix, classnames)
         loss = self.logger.log({'loss': loss_meter.avg})
-        self.logger.commit()
 
         self._after_test()
         return loss, accuracy
