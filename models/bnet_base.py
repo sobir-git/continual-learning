@@ -271,6 +271,7 @@ class BnetTrainer(TrainerBase):
 
         B = len(self.model.branches)
         device = self.device
+        mask = mask.to(device)
         loss_est_heatmap = torch.zeros(len(classnames), B, device=device)
 
         # holds predictions of main(combined) and indiviual branches
