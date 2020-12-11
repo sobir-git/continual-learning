@@ -139,7 +139,7 @@ class BranchNet(nn.Module):
 def gen_branch_mask(br_probs):
     # this is a mask that will capture only the selected branches
     N, B = br_probs.shape
-    branch_mask = torch.zeros(br_probs.shape, dtype=torch.bool)
+    branch_mask = torch.zeros(br_probs.shape, dtype=torch.bool, device=br_probs.device)
     for i in range(N):  # loop over all batch items
         # randomly choose a branch
         _br_idx = np.random.choice(B, p=br_probs[i])
