@@ -14,6 +14,21 @@ from training import TrainerBase
 from utils import AverageMeter, Timer, get_prediction
 
 
+class LeLFunction:
+    def __init__(self, opt):
+        self.loss_fn = getattr(self, opt.lel_fn)
+        self.detach = opt.lel_detach
+
+    def __call__(self, actual_loss, estimated_loss):
+        if self.detach:
+            actual_loss = actual_loss.detach()
+        r = self.loss_fn(actual_loss, estimated_loss)
+        return r
+
+    def mse(self, acl, esl):  # (N, B)
+        return F.mse_loss(acl, esl, reduction='none')
+
+
 class LossEstimator(nn.Module):
     def __init__(self, opt, in_shape, hidden_layers=None):
         super(LossEstimator, self).__init__()
@@ -63,7 +78,6 @@ class Base(nn.Module):
 class BranchNet(nn.Module):
     _branches: Union[List[Branch], nn.ModuleList]
     _base: nn.Module
-    lel_function = F.mse_loss
     beta = 0.
 
     def __init__(self, base, branches):
@@ -146,11 +160,11 @@ class BnetTrainer(TrainerBase):
     _default_criterion = torch.nn.CrossEntropyLoss(reduction='none')
     beta = 0.
 
-    def __init__(self, opt, model: BranchNet, logger: Logger, device, optimizer, backprop, lel_function=F.mse_loss):
+    def __init__(self, opt, model: BranchNet, logger: Logger, device, optimizer, backprop=None, lel_function=None):
         super().__init__(opt, model, logger, device, optimizer)
-        self.lel_function = lel_function
+        self.lel_function = lel_function or LeLFunction(opt)
         self.criterion = self._default_criterion
-        self.backprop = backprop
+        self.backprop = backprop or Backprop(opt)
 
     def get_branch_probs(self, cross_entropy_loss, est_loss):
         """Return probabilities of selecting branches given their classification losses."""
@@ -193,14 +207,14 @@ class BnetTrainer(TrainerBase):
         branch_mask = gen_branch_mask(br_probs)
 
         # construct loss estimation loss; this is a loss for each sample, branch pairs
-        le_loss = self.lel_function(cross_entropy_loss, estimated_loss, reduction='none')
+        le_loss = self.lel_function(cross_entropy_loss, estimated_loss)
 
         # backprop classification loss
         self.optimizer.zero_grad()
         self.backprop(self.model, cross_entropy_loss, branch_mask, le_loss)
 
         # backprop loss estimation loss
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt.clip)  # Always be safe than sorry
+        # torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt.clip)  # Always be safe than sorry
         self.optimizer.step()
 
         return cross_entropy_loss, branch_mask, le_loss  # shapes all (N, B)
@@ -320,9 +334,8 @@ class BnetTrainer(TrainerBase):
 
 
 class Backprop:
-    def __init__(self, method, **kwargs):
-        self.method = getattr(self, method)
-        self.kwargs = kwargs
+    def __init__(self, opt):
+        self.method = getattr(self, opt.backprop)
         self._frozen_base_params = []
 
     def __call__(self, model, cross_entropy_loss, branch_mask, lel):
@@ -330,7 +343,7 @@ class Backprop:
         self.cross_entropy_loss = cross_entropy_loss
         self.branch_mask = branch_mask
         self.lel = lel
-        return self.method(**self.kwargs)
+        return self.method()
 
     def only_clf(self):
         clf_loss = self.cross_entropy_loss * self.branch_mask

@@ -5,7 +5,7 @@ from torch import optim
 import models.concrete.single
 from dataloader import VisionDataset
 from logger import Logger
-from models.bnet_base import BranchNet, BnetTrainer, Backprop
+from models.bnet_base import BranchNet, BnetTrainer, Backprop, LeLFunction
 from opts import parse_args
 from training import StandardTrainer
 from utils import AverageMeter, get_console_logger, save_pretrained_model, load_pretrained_model, \
@@ -49,8 +49,9 @@ def exp1(opt):
     timer = Timer()
 
     if isinstance(model, BranchNet):
-        backprop = Backprop(opt.backprop)
-        trainer = BnetTrainer(opt, model, None, get_default_device(), optimizer, backprop)
+        backprop = Backprop(opt)
+        lel_function = LeLFunction(opt)
+        trainer = BnetTrainer(opt, model, None, get_default_device(), optimizer, backprop, lel_function)
     else:
         trainer = StandardTrainer(opt, None, model, get_default_device(), optimizer)
 

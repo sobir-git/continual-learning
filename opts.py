@@ -34,6 +34,8 @@ def parse_args(args=None):
     parser.add_argument('--pretrained_model_name', type=str, default='pretrained_model',
                         help='Name of the pretrained model file.')
     parser.add_argument('--backprop', type=str, help='Backpropagation method for branches')
+    parser.add_argument('--lel_fn', type=str, default='mse', help='Loss-estimation function')
+    parser.add_argument('--lel_detach', action='store_true', help='Detach actual loss from lel')
 
     # Default experiment options
     parser.add_argument('--optimizer', type=str, default='sgd', help='Optimizer', choices=['sgd'])
