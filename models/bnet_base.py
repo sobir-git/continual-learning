@@ -136,10 +136,10 @@ class BranchNet(nn.Module):
         return outputs, est_losses
 
 
-def gen_branch_mask(br_probs):
+def gen_branch_mask(br_probs, device):
     # this is a mask that will capture only the selected branches
     N, B = br_probs.shape
-    branch_mask = torch.zeros(br_probs.shape, dtype=torch.bool, device=br_probs.device)
+    branch_mask = torch.zeros(br_probs.shape, dtype=torch.bool, device=device)
     for i in range(N):  # loop over all batch items
         # randomly choose a branch
         _br_idx = np.random.choice(B, p=br_probs[i])
@@ -204,7 +204,7 @@ class BnetTrainer(TrainerBase):
 
         # construct a probability matrix for choosing branches
         br_probs = self.get_branch_probs(cross_entropy_loss, estimated_loss)  # (N, B)
-        branch_mask = gen_branch_mask(br_probs)
+        branch_mask = gen_branch_mask(br_probs, device=self.device)
 
         # construct loss estimation loss; this is a loss for each sample, branch pairs
         le_loss = self.lel_function(cross_entropy_loss, estimated_loss)
