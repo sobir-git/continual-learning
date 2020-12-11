@@ -163,7 +163,7 @@ class BnetTrainer(TrainerBase):
     def __init__(self, opt, model: BranchNet, logger: Logger, device, optimizer, backprop=None, lel_function=None):
         super().__init__(opt, model, logger, device, optimizer)
         self.lel_function = lel_function or LeLFunction(opt)
-        self.criterion = self._default_criterion
+        self.criterion = self._default_criterion.to(device)
         self.backprop = backprop or Backprop(opt)
 
     def get_branch_probs(self, cross_entropy_loss, est_loss):
