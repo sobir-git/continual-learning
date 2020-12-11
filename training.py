@@ -29,7 +29,7 @@ class TrainerBase:
         self.logger.pop_pref()
 
     def _get_log_every(self, n_batches):
-        return n_batches // 5
+        return max(n_batches // 5, 1)
 
     def set_logger(self, logger: Logger):
         self.logger = logger

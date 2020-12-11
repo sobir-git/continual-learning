@@ -3,7 +3,8 @@ from unittest.mock import Mock
 import torch
 import numpy as np
 
-from models.bnet_base import LossEstimator, BranchNet, Branch, BnetTrainer
+import models.concrete
+from models.bnet_base import LossEstimator, BranchNet, Branch, BnetTrainer, Backprop
 from .common import *
 from .test_dataloader import vision_dataset, partial_dataloader
 
@@ -17,6 +18,13 @@ NUM_CLASSES = 10
 def le(opt, request):
     hidden_layers = request.param
     return LossEstimator(opt, in_shape=BASE_OUT_SHAPE, hidden_layers=hidden_layers)
+
+
+@pytest.fixture
+def mocklogger():
+    logger = Mock()
+    logger.log_accuracies = Mock(return_value={'main': 0.8})
+    return logger
 
 
 @pytest.fixture
@@ -81,11 +89,12 @@ class TestBranchNet:
 
 
 @pytest.fixture
-def trainer(opt, branchnet):
-    logger = Mock()
-    logger.log_accuracies = Mock(return_value={'main': 0.8})
-    optimizer = torch.optim.SGD(branchnet.parameters(), lr=0.01)
-    return BnetTrainer(opt, model=branchnet, logger=logger, device=torch.device('cpu'), optimizer=optimizer)
+def trainer(opt, branchnet, mocklogger):
+    model = models.concrete.simple.simple_single_branch(opt)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+    backprop = Backprop('only_clf')
+    trainer = BnetTrainer(opt, model, mocklogger, torch.device('cpu'), optimizer, backprop)
+    return trainer
 
 
 class TestBnetTrainer:
@@ -100,7 +109,7 @@ class TestBnetTrainer:
         assert probs.shape == est_loss.shape
         assert np.all(probs[:, 0] < probs[:, 1])
 
-    def test__train(self, trainer, vision_dataset):
+    def test__train0(self, trainer, vision_dataset):
         x, y = next(iter(vision_dataset.pretest_loader))
         trainer.optimizer = Mock()
         cross_entropy_loss, branch_mask, le_loss = trainer._train(x, y)
@@ -111,10 +120,24 @@ class TestBnetTrainer:
         assert le_loss.shape == (N, B)
         assert torch.allclose(branch_mask, branch_mask ** 2), "Branch mask should be binary mask"
 
-    def test_train(self, trainer, vision_dataset):
-        loader = partial_dataloader(vision_dataset.pretrain_loader, 10)  # a small loader with three batches
-        data_time = trainer.train(loader, num_loops=2)
-        assert isinstance(data_time, float) and data_time > 0
+    # def test_train(self, trainer, vision_dataset):
+    #     loader = partial_dataloader(vision_dataset.pretrain_loader, 10)  # a small loader with three batches
+    #     data_time = trainer.train(loader, num_loops=2)
+    #     assert isinstance(data_time, float) and data_time > 0
+
+    def test__train1(self, opt, vision_dataset, trainer):
+        # we are gonna train the net on a sinlge batch and check if its loss decreases
+        inputs, labels = next(iter(vision_dataset.pretrain_loader))
+
+        # trainer.model()
+        losses = []
+        for i in range(10):
+            cross_entropy_loss, branch_mask, le_loss = trainer._train(inputs, labels)
+            clf_loss = cross_entropy_loss.mean()
+            losses.append(clf_loss)
+        less = [losses[i] > losses[i + 1] for i in range(len(losses) - 1)]
+        print(losses)
+        assert all(less)
 
     def test_test(self, trainer, vision_dataset):
         loader = partial_dataloader(vision_dataset.pretest_loader, 2)
@@ -134,3 +157,20 @@ class TestBnetTrainer:
         for param in trainer.model.parameters(recurse=True):
             if param.requires_grad:
                 assert param.grad is not None
+
+    def test_train(self, trainer, vision_dataset):
+        loader = partial_dataloader(vision_dataset.pretrain_loader, 10, fixed=True)
+        trainer.backprop = Backprop('only_clf')
+
+        inputs, labels = next(iter(loader))
+        losses = []
+        for i in range(10):
+            trainer.train(loader)
+            outputs, estimated_losses = trainer.model(inputs)  # (N, 1, C), (N, B)
+            outputs = outputs[:, 0, :]
+            loss = trainer.criterion(outputs, labels).mean()
+            losses.append(loss)
+
+        print(losses)
+        decrease = [losses[i] > losses[i + 1] for i in range(len(losses) - 1)]
+        assert all(decrease)

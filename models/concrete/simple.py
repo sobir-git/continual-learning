@@ -71,10 +71,22 @@ def _simple_branch():
     )
 
 
+def very_simple1(opt):
+    return Sequential(_simple_base(), _simple_branch())
+
+
 def simple_double_branch(opt):
     base = _simple_base()
     branches = [
         Branch(opt, _simple_branch(), in_shape=(16, 7, 7)),
+        Branch(opt, _simple_branch(), in_shape=(16, 7, 7)),
+    ]
+    return BranchNet(base, branches=branches)
+
+
+def simple_single_branch(opt):
+    base = _simple_base()
+    branches = [
         Branch(opt, _simple_branch(), in_shape=(16, 7, 7)),
     ]
     return BranchNet(base, branches=branches)

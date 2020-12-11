@@ -5,7 +5,7 @@ from torch import optim
 import models.concrete.single
 from dataloader import VisionDataset
 from logger import Logger
-from models.bnet_base import BranchNet, BnetTrainer
+from models.bnet_base import BranchNet, BnetTrainer, Backprop
 from opts import parse_args
 from training import StandardTrainer
 from utils import AverageMeter, get_console_logger, save_pretrained_model, load_pretrained_model, \
@@ -49,7 +49,8 @@ def exp1(opt):
     timer = Timer()
 
     if isinstance(model, BranchNet):
-        trainer = BnetTrainer(opt, model, None, get_default_device(), optimizer)
+        backprop = Backprop(opt.backprop)
+        trainer = BnetTrainer(opt, model, None, get_default_device(), optimizer, backprop)
     else:
         trainer = StandardTrainer(opt, None, model, get_default_device(), optimizer)
 
@@ -84,7 +85,7 @@ def exp1(opt):
                 scheduler.step()
 
                 with timer:
-                    acc = trainer.test(loader=vd.pretest_loader, mask=vd.pretrain_mask, classnames=vd.class_names)
+                    _, acc = trainer.test(loader=vd.pretest_loader, mask=vd.pretrain_mask, classnames=vd.class_names)
                 console_logger.info(f'Test time: {timer.values[-1]:.1f}')
             console_logger.info(f'==> Pretraining completed! Acc: [{acc:.3f}]')
 

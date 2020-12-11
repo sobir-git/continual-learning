@@ -104,6 +104,7 @@ class Logger:
                         linewidths=2,
                         cmap=sns.color_palette("light:g", as_cmap=True), vmin=vmin)
             self.log({name: wandb.Image(fig)})
+            plt.close(fig)
         else:
             # Warning: this option is currently buggy because of wandb or plotly
             if vmax is not None or vmin is not None:

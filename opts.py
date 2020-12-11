@@ -33,6 +33,7 @@ def parse_args(args=None):
                         help='Name of experiment to take pretrained model from')
     parser.add_argument('--pretrained_model_name', type=str, default='pretrained_model',
                         help='Name of the pretrained model file.')
+    parser.add_argument('--backprop', type=str, help='Backpropagation method for branches')
 
     # Default experiment options
     parser.add_argument('--optimizer', type=str, default='sgd', help='Optimizer', choices=['sgd'])

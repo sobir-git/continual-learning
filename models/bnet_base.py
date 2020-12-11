@@ -122,14 +122,35 @@ class BranchNet(nn.Module):
         return outputs, est_losses
 
 
+def gen_branch_mask(br_probs):
+    # this is a mask that will capture only the selected branches
+    N, B = br_probs.shape
+    branch_mask = torch.zeros(br_probs.shape, dtype=torch.bool)
+    for i in range(N):  # loop over all batch items
+        # randomly choose a branch
+        _br_idx = np.random.choice(B, p=br_probs[i])
+        branch_mask[i, _br_idx] = 1
+    return branch_mask
+
+
+def get_cross_entropy_loss(criterion, outputs, y):  # (N, B, C), (N,)
+    cross_entropy_loss = []
+    for br_idx in range(outputs.size(1)):
+        loss_ = criterion(outputs[:, br_idx, :], y)  # (N,)
+        cross_entropy_loss.append(loss_)
+    cross_entropy_loss = torch.stack(cross_entropy_loss, 1)  # (N,B)
+    return cross_entropy_loss
+
+
 class BnetTrainer(TrainerBase):
     _default_criterion = torch.nn.CrossEntropyLoss(reduction='none')
     beta = 0.
 
-    def __init__(self, opt, model: BranchNet, logger: Logger, device, optimizer, lel_function=F.mse_loss):
+    def __init__(self, opt, model: BranchNet, logger: Logger, device, optimizer, backprop, lel_function=F.mse_loss):
         super().__init__(opt, model, logger, device, optimizer)
         self.lel_function = lel_function
         self.criterion = self._default_criterion
+        self.backprop = backprop
 
     def get_branch_probs(self, cross_entropy_loss, est_loss):
         """Return probabilities of selecting branches given their classification losses."""
@@ -165,29 +186,18 @@ class BnetTrainer(TrainerBase):
         assert estimated_loss.shape == (N, B)
 
         # construct cross-entropy losses for all sample, batch pairs
-        cross_entropy_loss = []
-        for br_idx in range(B):
-            loss_ = self.criterion(outputs[:, br_idx, :], y)  # (N,)
-            cross_entropy_loss.append(loss_)
-        cross_entropy_loss = torch.stack(cross_entropy_loss, 1)  # (N,B)
+        cross_entropy_loss = get_cross_entropy_loss(self.criterion, outputs, y)
 
         # construct a probability matrix for choosing branches
         br_probs = self.get_branch_probs(cross_entropy_loss, estimated_loss)  # (N, B)
+        branch_mask = gen_branch_mask(br_probs)
 
-        # select cross-entropy losses to constructed classification loss
-        # this is a mask that will capture only the selected branches
-        branch_mask = torch.zeros_like(cross_entropy_loss)
-        for i in range(N):  # loop over all batch items
-            # randomly choose a branch
-            _br_idx = np.random.choice(B, p=br_probs[i])
-            branch_mask[i, _br_idx] = 1
-
-        # construct loss estimation loss
-        # this is a loss for each sample, branch pairs
+        # construct loss estimation loss; this is a loss for each sample, branch pairs
         le_loss = self.lel_function(cross_entropy_loss, estimated_loss, reduction='none')
 
         # backprop classification loss
-        self.backprop(cross_entropy_loss, branch_mask, le_loss)
+        self.optimizer.zero_grad()
+        self.backprop(self.model, cross_entropy_loss, branch_mask, le_loss)
 
         # backprop loss estimation loss
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt.clip)  # Always be safe than sorry
@@ -308,18 +318,49 @@ class BnetTrainer(TrainerBase):
         self._after_test()
         return main_loss_meter.avg, accuracies['main']
 
-    def backprop(self, cross_entropy_loss, branch_mask, lel):
+
+class Backprop:
+    def __init__(self, method, **kwargs):
+        self.method = getattr(self, method)
+        self.kwargs = kwargs
+        self._frozen_base_params = []
+
+    def __call__(self, model, cross_entropy_loss, branch_mask, lel):
+        self.model = model
+        self.cross_entropy_loss = cross_entropy_loss
+        self.branch_mask = branch_mask
+        self.lel = lel
+        return self.method(**self.kwargs)
+
+    def only_clf(self):
+        clf_loss = self.cross_entropy_loss * self.branch_mask
+        clf_loss.mean().backward()
+
+    def freeze_model_base(self):
+        if len(self._frozen_base_params) > 0:
+            raise Exception("Already some base params are frozen")
+
+        for p in self.model.base.parameters(recurse=True):
+            if p.requires_grad:
+                p.requires_grad = False
+                self._frozen_base_params.append(p)
+
+    def undo_model_base_freeze(self):
+        for p in self._frozen_base_params:
+            assert not p.requires_grad, "Did someone else unfroze some base params after me?"
+            p.requires_grad = True
+
+    def clf_and_le(self):
         # shapes: (N, B), (N, B), (N, B)
 
-        clf_loss = cross_entropy_loss * branch_mask
+        clf_loss = self.cross_entropy_loss * self.branch_mask
 
         # backprop clf_loss
         clf_loss.mean().backward(retain_graph=True)
 
         # freeze the model base and backprop lel
-        for p in self.model.base.parameters(recurse=True):
-            p.requires_grad = False
-        lel.mean().backward()
+        self.freeze_model_base()
+        self.lel.mean().backward()
+
         # unfreeze the model base back
-        for p in self.model.base.parameters(recurse=True):
-            p.requires_grad = True
+        self.undo_model_base_freeze()

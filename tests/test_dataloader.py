@@ -9,14 +9,27 @@ from utils import Timer
 from .common import *
 
 
-def partial_dataloader(loader, n_batches):
+def partial_dataloader(loader, n_batches, fixed=False):
+    '''
+    Create a loader that only has n_batches.
+    Fixed is whether to make the loader produce same set of batches everytime iterated.
+    '''
     m_loader = Mock(loader)
-    def it(self):
-        i = iter(loader)
-        return (next(i) for _ in range(n_batches))
+    i = iter(loader)
+
+    if not fixed:
+        batches = [next(i) for _ in range(n_batches)]
+
+        def it(self):
+            return iter(batches)
+    else:
+        def it(self):
+            return iter(next(i) for _ in range(n_batches))
+
     m_loader.__len__ = lambda self: n_batches
     m_loader.__iter__ = it
     return m_loader
+
 
 def test_partial_dataloader(vision_dataset):
     loader = partial_dataloader(vision_dataset.pretest_loader, 3)
