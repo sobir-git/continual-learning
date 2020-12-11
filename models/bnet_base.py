@@ -243,7 +243,7 @@ class BnetTrainer(TrainerBase):
 
         for i in range(num_loops):
             for batch_idx, (inputs, labels) in enumerate(data_time.get_timed_generator(dataloader)):
-                inputs, label = inputs.to(device), labels.to(device)
+                inputs, labels = inputs.to(device), labels.to(device)
                 cross_entropy_loss, branch_mask, lel = self._train(inputs, labels)
                 clf_losses['main'].update((cross_entropy_loss * branch_mask).sum() / branch_mask.sum(), inputs.size(0))
                 for br_idx in range(B):
