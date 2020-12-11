@@ -349,6 +349,7 @@ class Backprop:
         for p in self._frozen_base_params:
             assert not p.requires_grad, "Did someone else unfroze some base params after me?"
             p.requires_grad = True
+        self._frozen_base_params.clear()
 
     def clf_and_le(self):
         # shapes: (N, B), (N, B), (N, B)
