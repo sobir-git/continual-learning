@@ -353,7 +353,7 @@ class Backprop:
     def clf_and_le(self):
         # shapes: (N, B), (N, B), (N, B)
 
-        clf_loss = self.cross_entropy_loss * self.branch_mask
+        clf_loss = (self.cross_entropy_loss * self.branch_mask).sum() / self.branch_mask.sum()
 
         # backprop clf_loss
         clf_loss.mean().backward(retain_graph=True)
