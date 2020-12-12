@@ -318,7 +318,7 @@ class BnetTrainer(TrainerBase):
         # report confusion matrix and accuracies/recalls
         confusion_matrices = {}
         for i, preds in enumerate(predictions):
-            cm = confusion_matrix(trues, preds)
+            cm = confusion_matrix(trues, preds, labels=range(len(classnames)))
             confusion_matrices[str(i) if i < B else 'main'] = cm
             self.logger.log_confusion_matrix(cm, classnames)
 

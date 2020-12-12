@@ -127,7 +127,7 @@ class StandardTrainer(TrainerBase):
             trues.extend(labels)
 
         # report confusion matrix, accuracies, recalls
-        confmatrix = confusion_matrix(trues, preds)
+        confmatrix = confusion_matrix(trues, preds, labels=range(len(classnames)))
         self.logger.log_confusion_matrix(confmatrix, classnames)
         accuracy = self.logger.log_accuracies(confmatrix, classnames)
         loss = self.logger.log({'loss': loss_meter.avg})
