@@ -310,7 +310,7 @@ class BnetTrainer(TrainerBase):
 
         # normalize
         cls_counter = torch.bincount(trues)
-        cls_counter = torch.cat((cls_counter, torch.zeros(len(classnames) - len(cls_counter))))
+        cls_counter = torch.cat((cls_counter, torch.zeros(len(classnames) - len(cls_counter), device=cls_counter.device)))
         cls_counter[cls_counter == 0] = 1  # replace zero to prevent zero division error
         loss_est_heatmap = loss_est_heatmap / cls_counter.view(-1, 1)
 
