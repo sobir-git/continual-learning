@@ -211,7 +211,7 @@ class BnetTrainer(TrainerBase):
 
         # backprop classification loss
         self.optimizer.zero_grad()
-        self.backprop(self.model, cross_entropy_loss, branch_mask, le_loss)
+        self.backprop(self.model, cross_entropy_loss, branch_mask, lel=le_loss, estimated_loss=estimated_loss)
 
         # backprop loss estimation loss
         # torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt.clip)  # Always be safe than sorry
@@ -339,11 +339,12 @@ class Backprop:
         self.method = getattr(self, opt.backprop)
         self._frozen_base_params = []
 
-    def __call__(self, model, cross_entropy_loss, branch_mask, lel):
+    def __call__(self, model, cross_entropy_loss, branch_mask, lel=None, estimated_loss=None):
         self.model = model
         self.cross_entropy_loss = cross_entropy_loss
         self.branch_mask = branch_mask
         self.lel = lel
+        self.estimated_loss = estimated_loss
         return self.method()
 
     def only_clf(self):
@@ -365,10 +366,13 @@ class Backprop:
             p.requires_grad = True
         self._frozen_base_params.clear()
 
+    def _get_clf_loss(self):
+        clf_loss = (self.cross_entropy_loss * self.branch_mask).sum() / self.branch_mask.sum()
+        return clf_loss
+
     def clf_and_le(self):
         # shapes: (N, B), (N, B), (N, B)
-
-        clf_loss = (self.cross_entropy_loss * self.branch_mask).sum() / self.branch_mask.sum()
+        clf_loss = self._get_clf_loss()
 
         # backprop clf_loss
         clf_loss.mean().backward(retain_graph=True)
@@ -376,6 +380,14 @@ class Backprop:
         # freeze the model base and backprop lel
         self.freeze_model_base()
         self.lel.mean().backward()
+        self.undo_model_base_freeze() # unfreeze the model base back
 
-        # unfreeze the model base back
-        self.undo_model_base_freeze()
+    def clf_and_le2(self):
+        """
+        Backprop on cross-entropy loss for all branches and force the estimated losses for
+        the chosen branches to zero.
+        """
+        clf_loss = self._get_clf_loss()
+        lel = (self.estimated_loss * self.branch_mask).sum() / self.branch_mask.sum()
+        final = clf_loss + lel
+        final.backward()
