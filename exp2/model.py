@@ -275,7 +275,9 @@ class Model:
         alosses = None
         for i, loss, alosses in self._feed_classifiers(classifiers, loader, criterion):
             pass
-        self.logger.log({'clf/' + str(clf.id) + '/val_loss': alosses[i].avg for i, clf in enumerate(classifiers)})
+        avg_losses = [alosses[i].avg for i in range(len(classifiers))]
+        self.logger.log({'clf/' + str(clf.id) + '/val_loss': avg_losses[i] for i, clf in enumerate(classifiers)})
+        return avg_losses
 
     def _feed_classifiers(self, classifiers: List[Classifier], loader, criterion):
         alosses = [AverageMeter() for _ in classifiers]
@@ -302,11 +304,15 @@ class Model:
         weight = self._get_class_weight()
         criterion = nn.CrossEntropyLoss(weight=weight)
         optimizer = self._create_classifier_optimizer(classifier)
+        stopper = TrainingStopper(tol=self.config.clf_new_epochs_tol)
         for epoch in range(1, n_epochs + 1):
+            if stopper.do_stop():
+                break
             self.logger.log({'clf/epoch': epoch})
             self._train_classifiers([classifier], train_loader, criterion, [optimizer])
             if val_loader is not None:
-                self._val_classifiers([classifier], val_loader, criterion)
+                losses = self._val_classifiers([classifier], val_loader, criterion)
+                stopper.update(losses[0])
             self.logger.commit()
         # add new class labels to classifiers mapping
         self.cls_to_clf_id.update({cls: classifier.id for cls in new_classes})

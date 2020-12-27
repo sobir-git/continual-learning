@@ -63,6 +63,7 @@ def parse_args(args=None) -> Config:
     parser.add_argument('--ctrl_epochs_tol', type=int, default=5, help='Number of training epochs without improvement before stopping.')
     parser.add_argument('--clf_lr', type=float, default=0.001, help='Learning rate of classifiers')
     parser.add_argument('--clf_new_epochs', type=int, default=50, help='Number of training epochs of a new classifier')
+    parser.add_argument('--clf_new_epochs_tol', type=int, default=8, help='Number of training epochs of a new classifier')
     parser.add_argument('--clf_update_epochs', type=int, default=20,
                         help='Number of training epochs when updating classifiers')
     parser.add_argument('--weight_decay', type=float, default=0.001, help='Weight decay ')
