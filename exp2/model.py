@@ -201,6 +201,21 @@ def create_controller(config, n_classifiers, device) -> Controller:
     return net
 
 
+class TrainingStopper:
+    def __init__(self, tol):
+        self.tol = tol
+        self.losses = []
+
+    def update(self, loss):
+        self.losses.append(loss)
+
+    def do_stop(self):
+        """If in the last tol epochs, the loss has not decreased from min, stop"""
+        if len(self.losses) <= self.tol:
+            return False
+        return min(self.losses[-self.tol:]) >= min(self.losses)
+
+
 class Model:
     predictors: List[Predictor] = [ByCtrl(), FilteredController()]
     controller = None
@@ -355,7 +370,9 @@ class Model:
         aloss = None
         for _, aloss in self._feed_controller(loader, criterion):
             pass
-        self.logger.log({'ctrl/val_loss': aloss.avg})
+        avg_loss = aloss.avg
+        self.logger.log({'ctrl/val_loss': avg_loss})
+        return avg_loss
 
     def train_new_controller(self, dataset):
         n_epochs = self.config.ctrl_epochs
@@ -363,11 +380,15 @@ class Model:
         self.controller = self._create_new_controller()
         optimizer = self.controller.get_optimizer()
         train_loader, val_loader = self._split(dataset)
+        stopper = TrainingStopper(tol=self.config.ctrl_epochs_tol)
         for epoch in range(1, n_epochs + 1):
+            if stopper.do_stop():
+                break
             self.logger.log({'ctrl/epoch': epoch})
             self._train_controller(train_loader, criterion, optimizer)
             if val_loader:
-                self._val_controller(val_loader, criterion)
+                loss = self._val_controller(val_loader, criterion)
+                stopper.update(loss)
             self.logger.commit()
 
     @torch.no_grad()
