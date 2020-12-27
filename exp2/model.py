@@ -306,13 +306,20 @@ class Model:
         train_loader, val_loader = self._split(dataset)
         n_epochs = self.config.clf_update_epochs
         criterion = nn.CrossEntropyLoss()
-        classifiers = self.classifiers[:-1]
+        classifiers = np.array(self.classifiers[:-1])
         optimizers = [self._create_classifier_optimizer(clf) for clf in classifiers]
+        stoppers = np.array([TrainingStopper(tol=self.config.clf_update_epochs_tol) for _ in classifiers])
         for epoch in range(n_epochs):
+            # filter out stopping classifiers and stoppers
+            indices = [not stopper.do_stop() for stopper in stoppers]
+            if sum(indices) == 0:
+                break
             self.logger.log({'clf/epoch': epoch})
-            self._train_classifiers(classifiers, train_loader, criterion, optimizers)
+            self._train_classifiers(classifiers[indices], train_loader, criterion, optimizers)
             if val_loader:
-                self._val_classifiers(classifiers, val_loader, criterion)
+                losses = self._val_classifiers(classifiers[indices], val_loader, criterion)
+                for stopper, loss in zip(stoppers[indices], losses):
+                    stopper.update(loss)
             self.logger.commit()
 
     def _forward_classifiers(self, features):
