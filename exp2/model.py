@@ -1,7 +1,7 @@
 import copy
 import itertools
 from collections import defaultdict
-from typing import List, Tuple, Union
+from typing import List, Union
 
 import sklearn
 import torch
@@ -12,7 +12,7 @@ from exp2 import models
 from exp2.data import create_loader
 from exp2.predictor import Predictor, ByCtrl, FilteredController
 from logger import Logger
-from utils import AverageMeter, np_a_in_b, get_default_device
+from utils import AverageMeter, np_a_in_b, get_default_device, TrainingStopper
 
 DEVICE = get_default_device()
 
@@ -199,21 +199,6 @@ def create_controller(config, n_classifiers, device) -> Controller:
         net = LinearController(config, n_classifiers)
     net = net.to(device)
     return net
-
-
-class TrainingStopper:
-    def __init__(self, tol):
-        self.tol = tol
-        self.losses = []
-
-    def update(self, loss):
-        self.losses.append(loss)
-
-    def do_stop(self):
-        """If in the last tol epochs, the loss has not decreased from min, stop"""
-        if len(self.losses) <= self.tol:
-            return False
-        return min(self.losses[-self.tol:]) >= min(self.losses)
 
 
 class Model:

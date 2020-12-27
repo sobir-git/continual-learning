@@ -277,3 +277,18 @@ def np_a_in_b(a, b) -> np.ndarray:
     """
     ids = np.where(np.equal(a, np.array(b).reshape(-1, 1)).any(axis=0))[0]
     return ids
+
+
+class TrainingStopper:
+    def __init__(self, tol):
+        self.tol = tol
+        self.losses = []
+
+    def update(self, loss):
+        self.losses.append(loss)
+
+    def do_stop(self):
+        """If in the last tol epochs, the loss has not decreased from min, stop"""
+        if len(self.losses) <= self.tol:
+            return False
+        return min(self.losses[:-self.tol]) <= min(self.losses[-self.tol:])
