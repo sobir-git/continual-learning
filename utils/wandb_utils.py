@@ -7,12 +7,13 @@ def wandb_confusion_matrix(confmatrix=None, classnames=None, title=None):
     """
     Note: labels should be a list of strings for the corresponding class numbers
     Arguments:
-        confmatrix: confusion matrix whose i,j entry denotes class i was predicted as j (like sklearn.confusion_matrix)
+        confmatrix: confusion matrix whose i,j entry denotes actual class was i and predicted as j (like sklearn.confusion_matrix)
     """
     confmatrix = confmatrix.copy()  # copy to prevent modifications
 
     if classnames is not None:
         assert len(confmatrix) == len(classnames)
+        classnames = [str(i) for i in classnames]
 
     # separate the diagonal from the matrix
     confmatrix = confmatrix.astype('float')

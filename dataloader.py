@@ -216,7 +216,7 @@ def get_augment_transforms(dataset, inp_sz):
     """
     Returns appropriate augmentation given dataset size and name
     Arguments:
-        dataset (Dataset): Dataset
+        dataset (str): dataset name
     """
     if inp_sz == 32 or inp_sz == 28 or inp_sz == 64:
         train_augment = [torchvision.transforms.RandomCrop(inp_sz, padding=4)]
@@ -255,7 +255,7 @@ def get_statistics(dataset):
     Returns statistics of the dataset given a string of dataset name. To add new dataset, please add required statistics here
     '''
     assert (dataset in ['MNIST', 'KMNIST', 'EMNIST', 'FashionMNIST', 'SVHN', 'CIFAR10', 'CIFAR100', 'CINIC10',
-                        'ImageNet100', 'ImageNet', 'TinyImagenet'])
+                        'ImageNet100', 'ImageNet', 'TinyImagenet', 'TinyCIFAR10'])
     mean = {
         'MNIST': (0.1307,),
         'KMNIST': (0.1307,),
@@ -263,6 +263,7 @@ def get_statistics(dataset):
         'FashionMNIST': (0.1307,),
         'SVHN': (0.4377, 0.4438, 0.4728),
         'CIFAR10': (0.4914, 0.4822, 0.4465),
+        'TinyCIFAR10': (0.4914, 0.4822, 0.4465),
         'CIFAR100': (0.5071, 0.4867, 0.4408),
         'CINIC10': (0.47889522, 0.47227842, 0.43047404),
         'TinyImagenet': (0.4802, 0.4481, 0.3975),
@@ -277,6 +278,7 @@ def get_statistics(dataset):
         'FashionMNIST': (0.3081,),
         'SVHN': (0.1969, 0.1999, 0.1958),
         'CIFAR10': (0.2023, 0.1994, 0.2010),
+        'TinyCIFAR10': (0.2023, 0.1994, 0.2010),
         'CIFAR100': (0.2675, 0.2565, 0.2761),
         'CINIC10': (0.24205776, 0.23828046, 0.25874835),
         'TinyImagenet': (0.2302, 0.2265, 0.2262),
@@ -291,6 +293,7 @@ def get_statistics(dataset):
         'FashionMNIST': 10,
         'SVHN': 10,
         'CIFAR10': 10,
+        'TinyCIFAR10': 10,
         'CIFAR100': 100,
         'CINIC10': 10,
         'TinyImagenet': 200,
@@ -305,6 +308,7 @@ def get_statistics(dataset):
         'FashionMNIST': 1,
         'SVHN': 3,
         'CIFAR10': 3,
+        'TinyCIFAR10': 3,
         'CIFAR100': 3,
         'CINIC10': 3,
         'TinyImagenet': 3,
@@ -319,6 +323,7 @@ def get_statistics(dataset):
         'FashionMNIST': 28,
         'SVHN': 32,
         'CIFAR10': 32,
+        'TinyCIFAR10': 32,
         'CIFAR100': 32,
         'CINIC10': 32,
         'TinyImagenet': 64,

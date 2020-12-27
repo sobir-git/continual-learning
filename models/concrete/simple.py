@@ -71,10 +71,6 @@ def _simple_branch():
     )
 
 
-def very_simple1(opt):
-    return Sequential(_simple_base(), _simple_branch())
-
-
 def simple_double_branch(opt):
     base = _simple_base()
     branches = [

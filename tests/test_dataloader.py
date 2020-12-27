@@ -98,7 +98,7 @@ def test_get_ci_dataloaders(vision_dataset):
     isinstance(target_transform, ReorderTargets)
     assert list(target_transform.class_order) == vision_dataset.class_order
 
-    cum_class_list = vision_dataset.pretrain_class_list.copy()
+    cumul_class_list = vision_dataset.pretrain_class_list.copy()
     for trainloader, testloader, class_list, mask in loaders:
         target_transform = trainloader.dataset.target_transform
         assert len(mask) == vision_dataset.n_classes_in_whole_dataset
@@ -106,9 +106,9 @@ def test_get_ci_dataloaders(vision_dataset):
 
         # make sure testloader contains classes from all previous tasks
         # sample some indices
-        cum_class_list += class_list
+        cumul_class_list += class_list
         indices = list(testloader.sampler)
-        assert set(np.array(testloader.dataset.targets)[indices]) == set(cum_class_list)
+        assert set(np.array(testloader.dataset.targets)[indices]) == set(cumul_class_list)
 
 
 def test_class_names(vision_dataset):

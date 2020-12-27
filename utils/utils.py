@@ -126,9 +126,9 @@ import os
 import logging
 
 
-def get_console_logger(folder):
+def get_console_logger(folder, name=__name__):
     # global logger
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter("[%(asctime)s] %(levelname)s:%(name)s:%(message)s")
     # file logger
@@ -263,3 +263,17 @@ class DeviceDataLoader:
     def __len__(self):
         """Number of batches"""
         return len(self.dl)
+
+
+def np_a_in_b(a, b) -> np.ndarray:
+    """Return the indices of the elements in array a that are present in b
+
+    Args:
+        a (np.ndarray):  1-d numpy array
+        b (list or np.ndarray):
+
+    Returns:
+        indices
+    """
+    ids = np.where(np.equal(a, np.array(b).reshape(-1, 1)).any(axis=0))[0]
+    return ids
