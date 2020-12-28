@@ -480,7 +480,7 @@ class Model:
             all_ctrl_preds.extend(torch.argmax(ctrl_out, 1).tolist())
 
             for i, (clf_out, clf) in enumerate(zip(clf_outs, self.classifiers)):
-                excl_idx = np_a_in_b(labels, clf.classes)  # indices that contain known labels to this classifier
+                excl_idx = np_a_in_b(labels_np, clf.classes)  # indices that contain known labels to this classifier
                 lbl = clf.map_other(labels_np, excl_idx)
                 for open, excl in itertools.product([True, False], [True, False]):
                     pred = clf.get_predictions(clf_out[excl_idx] if excl else clf_out, open=open)
