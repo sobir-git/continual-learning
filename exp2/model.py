@@ -6,6 +6,7 @@ from typing import List, Union
 import sklearn
 import torch
 from torch import nn, optim
+import torch.nn.functional as F
 import numpy as np
 
 from exp2 import models
@@ -120,6 +121,9 @@ class LinearController(Controller):
         self.net = nn.Linear(in_features=in_features, out_features=n_classifiers)
 
     def forward(self, clf_outs):
+        """Assumes the classifier raw outputs in a list."""
+        # run softmax
+        clf_outs = [F.softmax(i, dim=1) for i in clf_outs]
         clf_outs = torch.cat(clf_outs, dim=1)
         return self.net(clf_outs)
 
@@ -200,6 +204,7 @@ def create_controller(config, n_classifiers, device) -> Controller:
     net = net.to(device)
     return net
 
+
 def get_class_weight(config, dataset):
     n_classes_per_phase = config.n_classes_per_phase
     if not config.other:
@@ -241,7 +246,6 @@ class Model:
     @property
     def classes(self):
         return list(self.cls_to_clf_id.keys())
-
 
     def _group_labels(self, labels: Union[torch.Tensor, List[int]]):
         """ Transform labels to their corresponding classifier ids."""

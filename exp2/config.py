@@ -77,7 +77,6 @@ def parse_args(args=None) -> Config:
     parser.add_argument('--weight_decay', type=float, default=0.001, help='Weight decay ')
 
 
-
     if args is not None:
         opt = parser.parse_args(args)
     else:
