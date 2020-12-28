@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from exp2 import models
-from exp2.data import create_loader
+from exp2.data import create_loader, PartialDataset
 from exp2.predictor import Predictor, ByCtrl, FilteredController
 from logger import Logger
 from utils import AverageMeter, np_a_in_b, get_default_device, TrainingStopper
@@ -499,7 +499,7 @@ class Model:
             self._report_predictor_metrics(predictor, all_labels, final_predictions)
         self.logger.commit()
 
-    def _split(self, dataset):
+    def _split(self, dataset: PartialDataset):
         """Split into train and test sets, and return dataloaders"""
         val_size = self.config.val_size
         if val_size > 0:

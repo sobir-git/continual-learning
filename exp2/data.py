@@ -15,9 +15,12 @@ import exp2.tiny_data
 
 class PartialDataset(Dataset):
 
-    def __init__(self, source, ids, classes=None):
+    def __init__(self, source, ids, transform, classes=None, test_transform=None):
+        assert transform is not None
+        self.transform = transform
+        self.test_transform = test_transform
         self.source = source
-        self.ids = ids   # only self ids, no otherset when involved
+        self.ids = ids  # only self ids, no otherset when involved
         self.labels = self.get_labels(self.source)[self.ids]
         self._classes = classes if classes is not None \
             else list(set(self.labels))
@@ -33,6 +36,7 @@ class PartialDataset(Dataset):
         if item < len(self.ids):
             id = self.ids[item]
             input, label = self.source[id]
+            input = self.transform(input)
             return input, label, id
         else:
             return self.otherset[item - len(self.ids)]  # input, label id
@@ -55,10 +59,10 @@ class PartialDataset(Dataset):
         self.otherset = dataset
 
     @classmethod
-    def from_classes(cls, source, classes):
+    def from_classes(cls, source, transform, classes, **kwargs):
         labels = cls.get_labels(source)
         ids = np_a_in_b(labels, classes)
-        return cls(source, ids, classes=classes)
+        return cls(source, ids, transform, classes=classes, **kwargs)
 
     @staticmethod
     def get_labels(dataset) -> np.ndarray:
@@ -74,20 +78,22 @@ class PartialDataset(Dataset):
         return labels
 
     def split(self, train_size=None, test_size=None):
-        """Split into train and test set. If it has otherset, it will also be split in the same ratio."""
+        """Split into train and test set. If it has otherset, it will also be split in the same ratio.
+        Also set val augmentation set to test ones.
+        """
         source = self.source
 
         train_ids, test_ids = \
             train_test_split(self.ids, train_size=train_size, test_size=test_size, stratify=self.labels)
-        self_train = PartialDataset(source, train_ids)
-        self_test = PartialDataset(source, test_ids)
+        self_train = PartialDataset(source, train_ids, self.transform)
+        self_test = PartialDataset(source, test_ids, self.test_transform)
 
         if self.otherset:
             o_train_ids, o_test_ids = \
                 train_test_split(self.otherset.ids, train_size=train_size, test_size=test_size,
                                  stratify=self.otherset.labels)
-            other_train = PartialDataset(source, o_train_ids)
-            other_test = PartialDataset(source, o_test_ids)
+            other_train = PartialDataset(source, o_train_ids, self.transform, test_transform=self.test_transform)
+            other_test = PartialDataset(source, o_test_ids, self.test_transform)
             self_train.set_otherset(other_train)
             self_test.set_otherset(other_test)
 
@@ -101,20 +107,25 @@ class PartialDataset(Dataset):
 
 
 class CIData:
-    def __init__(self, train_source, test_source, class_order, n_classes_per_phase, n_phases):
+    def __init__(self, train_source, test_source, class_order, n_classes_per_phase, n_phases, train_transform,
+                 test_transform):
+        """Note: Assumes the train source and test source without tranforms."""
         self.class_order = class_order
         self.n_classes_per_phase = n_classes_per_phase
         self.n_phases = n_phases
         self.train_source = train_source
         self.test_source = test_source
+        self.train_transform = train_transform
+        self.test_transform = test_transform
         self.data = []
         cumul_classes = []
         for phase in range(n_phases):
             classes = self.class_order[phase * n_classes_per_phase:(phase + 1) * n_classes_per_phase]
-            train = PartialDataset.from_classes(train_source, classes)
-            test = PartialDataset.from_classes(test_source, classes)
+            train = PartialDataset.from_classes(train_source, train_transform, classes,
+                                                test_transform=test_transform)
+            test = PartialDataset.from_classes(test_source, test_transform, classes)
             cumul_classes.extend(classes)
-            cumul_test = PartialDataset.from_classes(test_source, cumul_classes)
+            cumul_test = PartialDataset.from_classes(test_source, test_transform, cumul_classes)
             self.data.append((train, test, cumul_test))
 
     def get_phase_data(self, phase) -> Tuple[PartialDataset, PartialDataset, PartialDataset]:
@@ -155,11 +166,12 @@ def prepare_data(config) -> CIData:
         train_augment + [torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(mean, std)])
     test_transforms = torchvision.transforms.Compose(
         test_augment + [torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(mean, std)])
-    train_source = _get_dataset(config, train=True, transforms=train_transforms)
-    test_source = _get_dataset(config, train=False, transforms=test_transforms)
+    train_source = _get_dataset(config, train=True, transforms=None)
+    test_source = _get_dataset(config, train=False, transforms=None)
     class_order = np.array(list(range(n_classes)))
     if config.class_order_seed != -1:
         _rs = np.random.RandomState(config.class_order_seed)
         _rs.shuffle(class_order)
 
-    return CIData(train_source, test_source, class_order, n_classes_per_phase, n_phases)
+    return CIData(train_source, test_source, class_order, n_classes_per_phase, n_phases,
+                  train_transform=train_transforms, test_transform=test_transforms)

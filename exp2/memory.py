@@ -8,7 +8,9 @@ from exp2.data import PartialDataset
 
 class Memory:
     # TODO: write tests
-    def __init__(self, config, source: Dataset):
+    def __init__(self, config, source: Dataset, train_transform, test_transform):
+        self.train_transform = train_transform
+        self.test_transform = test_transform
         self._scores = dict()
         self._ids = dict()
         assert not isinstance(source, PartialDataset)
@@ -28,7 +30,7 @@ class Memory:
 
     def get_dataset(self):
         ids = self.get_all_ids()
-        return PartialDataset(self.source, ids, classes=self.get_classes())
+        return PartialDataset(self.source, ids, self.train_transform, test_transform=self.test_transform, classes=self.get_classes())
 
     def update(self, ids: np.ndarray, scores, new_classes: List[int]):
         """ Update memory with new classes """

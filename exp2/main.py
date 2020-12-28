@@ -15,7 +15,7 @@ def run(config):
     console_logger.info('config:' + str(config))
     # prepare data
     data = prepare_data(config)
-    memory = Memory(config, source=data.train_source)
+    memory = Memory(config, data.train_source, data.train_transform, data.test_transform)
     model = Model(config, logger=logger)
 
     for phase in range(1, config.n_phases + 1):
