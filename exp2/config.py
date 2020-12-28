@@ -68,7 +68,15 @@ def parse_args(args=None) -> Config:
                         help='Number of training epochs when updating classifiers')
     parser.add_argument('--clf_update_epochs_tol', type=int, default=4,
                         help='Number of training epochs without improvement before stopping.')
+    parser.add_argument('--balance_other_samplesize', action='store_true',
+                        help='Class balancing considering the trainset/otherset sample size. '
+                             'This will increase weight of otherset by that ratio.')
+    parser.add_argument('--balance_other_classsize', action='store_true',
+                        help='Class balancing considering the otherset/trainset number of classes. '
+                             'This will increase weight of otherset by that ratio.')
     parser.add_argument('--weight_decay', type=float, default=0.001, help='Weight decay ')
+
+
 
     if args is not None:
         opt = parser.parse_args(args)

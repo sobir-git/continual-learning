@@ -200,6 +200,30 @@ def create_controller(config, n_classifiers, device) -> Controller:
     net = net.to(device)
     return net
 
+def get_class_weight(config, dataset):
+    n_classes_per_phase = config.n_classes_per_phase
+    if not config.other:
+        weight = torch.ones(n_classes_per_phase) / n_classes_per_phase
+    else:
+        otherset_size = len(dataset.otherset.ids)
+        n_other_classes = len(dataset.otherset.classes)
+        n_new_classes = len(dataset.classes)
+        new_samples_size = len(dataset.ids)
+        r = 1
+
+        # account for otherset size
+        if config.balance_other_samplesize:
+            r *= otherset_size / new_samples_size
+
+        # account for num of classes
+        if config.balance_other_classsize:
+            r *= n_new_classes / n_other_classes
+
+        weight = [1.] * n_new_classes + [1 / r]
+        weight = torch.tensor(weight)
+        weight = weight / weight.sum()  # normalize
+    return weight
+
 
 class Model:
     predictors: List[Predictor] = [ByCtrl(), FilteredController()]
@@ -218,16 +242,6 @@ class Model:
     def classes(self):
         return list(self.cls_to_clf_id.keys())
 
-    def _get_class_weight(self):
-        n_classes_per_phase = self.config.n_classes_per_phase
-        if not self.config.other:
-            weight = torch.ones(n_classes_per_phase) / n_classes_per_phase
-        else:
-            # get total number of classes
-            tot_n_classes = self.config.n_classes_per_phase * len(self.classifiers)
-            weight = torch.tensor([1] * n_classes_per_phase + [tot_n_classes - n_classes_per_phase]) / tot_n_classes
-        weight = weight.to(self.device)
-        return weight
 
     def _group_labels(self, labels: Union[torch.Tensor, List[int]]):
         """ Transform labels to their corresponding classifier ids."""
@@ -286,7 +300,8 @@ class Model:
         classifier = self._create_classifier(new_classes)
         n_epochs = self.config.clf_new_epochs
         train_loader, val_loader = self._split(dataset)
-        weight = self._get_class_weight()
+        weight = get_class_weight(self.config, dataset)
+        weight = weight.to(self.device)
         criterion = nn.CrossEntropyLoss(weight=weight)
         optimizer = self._create_classifier_optimizer(classifier)
         stopper = TrainingStopper(tol=self.config.clf_new_epochs_tol)

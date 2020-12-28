@@ -17,13 +17,19 @@ class PartialDataset(Dataset):
 
     def __init__(self, source, ids, classes=None):
         self.source = source
-        self.ids = ids
+        self.ids = ids   # only self ids, no otherset when involved
         self.labels = self.get_labels(self.source)[self.ids]
-        self.classes = classes if classes is not None \
+        self._classes = classes if classes is not None \
             else list(set(self.labels))
         self.otherset = None
 
+    @property
+    def classes(self):
+        """Number of classes only in self (not including otherset)"""
+        return self._classes
+
     def __getitem__(self, item):
+        """From self and otherset(if exists)."""
         if item < len(self.ids):
             id = self.ids[item]
             input, label = self.source[id]
@@ -32,6 +38,7 @@ class PartialDataset(Dataset):
             return self.otherset[item - len(self.ids)]  # input, label id
 
     def __len__(self):
+        """Length of self + otherset"""
         n = len(self.ids)
         if self.otherset:
             n += len(self.otherset)
@@ -44,7 +51,7 @@ class PartialDataset(Dataset):
         assert isinstance(dataset, PartialDataset)
         assert dataset.otherset is None, "Otherset shouldn't have otherset"
         assert dataset.source is self.source
-        assert set(dataset.classes).isdisjoint(self.classes)
+        assert set(dataset.classes).isdisjoint(self._classes)
         self.otherset = dataset
 
     @classmethod
@@ -55,6 +62,7 @@ class PartialDataset(Dataset):
 
     @staticmethod
     def get_labels(dataset) -> np.ndarray:
+        """Only self labels"""
         if hasattr(dataset, 'labels'):
             labels = dataset.labels
         else:
@@ -66,6 +74,7 @@ class PartialDataset(Dataset):
         return labels
 
     def split(self, train_size=None, test_size=None):
+        """Split into train and test set. If it has otherset, it will also be split in the same ratio."""
         source = self.source
 
         train_ids, test_ids = \
@@ -111,7 +120,7 @@ class CIData:
     def get_phase_data(self, phase) -> Tuple[PartialDataset, PartialDataset, PartialDataset]:
         """Phases start from 1."""
         assert phase < self.n_phases + 1
-        return self.data[phase-1]
+        return self.data[phase - 1]
 
 
 def create_loader(config, dataset):
