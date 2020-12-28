@@ -26,14 +26,14 @@ def run(config):
         trainset, testset, cumul_testset = data.get_phase_data(phase)
 
         # compute importance scores of the training samples, (before mixing with otherset!)
-        if phase == 1:
-            # equal scores in the first phase, because no controller yet
-            new_ids = trainset.ids[:]
-            fresh_scores = np.ones_like(new_ids)
-        else:
+        if config.memory_sampler != 'greedy' and phase > 1:
             console_logger.info('Computing importance scores')
             # here the importance scores are the maximum logit of the previous controller
             new_ids, fresh_scores = model.compute_importance_scores(trainset)
+        else:
+            # equal scores
+            new_ids = trainset.ids[:]
+            fresh_scores = np.ones_like(new_ids)
 
         console_logger.info('Training a new classifier')
         # train a new classifier on new samples, (by assigning otherset first)
@@ -54,10 +54,11 @@ def run(config):
         # train a new controller
         model.train_new_controller(memory.get_dataset())
 
-        console_logger.info('Updating importance scores in memory')
-        # recompute scores with the new controller, these scores are more accurate
-        ids, scores = model.recompute_importance_scores(memory.get_dataset())
-        memory.update_scores(ids, scores)
+        if config.memory_sampler != 'greedy':
+            console_logger.info('Updating importance scores in memory')
+            # recompute scores with the new controller, these scores are more accurate
+            ids, scores = model.recompute_importance_scores(memory.get_dataset())
+            memory.update_scores(ids, scores)
 
         console_logger.info('Testing the model')
         # test the model
