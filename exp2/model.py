@@ -232,6 +232,11 @@ def get_class_weight(config, dataset):
     return weight
 
 
+def get_lr_scheduler(cfg, optimizer):
+    return optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=cfg.lr_decay, patience=cfg.lr_patience, verbose=True,
+                                         min_lr=0.00001)
+
+
 class Model:
     predictors: List[Predictor] = [ByCtrl(), FilteredController()]
     controller = None
@@ -322,16 +327,16 @@ class Model:
         criterion = nn.CrossEntropyLoss(weight=weight)
         optimizer = self._create_classifier_optimizer(classifier)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=cfg.lr_decay, patience=cfg.lr_patience, verbose=True)
+        lr_scheduler = get_lr_scheduler(cfg, optimizer)
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
             self.logger.log({'clf/epoch': epoch})
-            losses = self._train_classifiers([classifier], train_loader, criterion, [optimizer])
-            lr_scheduler.step(losses[0])
+            self._train_classifiers([classifier], train_loader, criterion, [optimizer])
             if val_loader is not None:
                 losses = self._val_classifiers([classifier], val_loader, criterion)
                 stopper.update(losses[0])
+                lr_scheduler.step(losses[0])
             self.logger.commit()
         # add new class labels to classifiers mapping
         self.cls_to_clf_id.update({cls: classifier.id for cls in new_classes})
@@ -419,15 +424,15 @@ class Model:
         optimizer = self.controller.get_optimizer()
         train_loader, val_loader = self._split(dataset)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=cfg.lr_decay, patience=cfg.lr_patience, verbose=True)
+        lr_scheduler = get_lr_scheduler(cfg, optimizer)
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
             self.logger.log({'ctrl/epoch': epoch})
-            loss = self._train_controller(train_loader, criterion, optimizer)
-            lr_scheduler.step(loss)
+            self._train_controller(train_loader, criterion, optimizer)
             if val_loader:
                 loss = self._val_controller(val_loader, criterion)
+                lr_scheduler.step(loss)
                 stopper.update(loss)
             self.logger.commit()
 
