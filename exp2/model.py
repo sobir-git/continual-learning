@@ -277,7 +277,9 @@ class Model:
             loss.backward()
             optimizers[i].step()
 
-        self.logger.log({'clf/' + str(clf.id) + '/tr_loss': alosses[i].avg for i, clf in enumerate(classifiers)})
+        avg_losses = [alosses[i].avg for i in range(len(classifiers))]
+        self.logger.log({'clf/' + str(clf.id) + '/tr_loss': avg_losses[i] for i, clf in enumerate(classifiers)})
+        return avg_losses
 
     @torch.no_grad()
     def _val_classifiers(self, classifiers, loader, criterion):
@@ -319,17 +321,17 @@ class Model:
         criterion = nn.CrossEntropyLoss(weight=weight)
         optimizer = self._create_classifier_optimizer(classifier)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=epoch_tol // 2, verbose=True)
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.25, patience=epoch_tol // 2, verbose=True)
 
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
             self.logger.log({'clf/epoch': epoch})
-            self._train_classifiers([classifier], train_loader, criterion, [optimizer])
+            losses = self._train_classifiers([classifier], train_loader, criterion, [optimizer])
+            lr_scheduler.step(losses[0])
             if val_loader is not None:
                 losses = self._val_classifiers([classifier], val_loader, criterion)
                 stopper.update(losses[0])
-                lr_scheduler.step(losses[0])
             self.logger.commit()
         # add new class labels to classifiers mapping
         self.cls_to_clf_id.update({cls: classifier.id for cls in new_classes})
@@ -394,7 +396,9 @@ class Model:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        self.logger.log({'ctrl/tr_loss': aloss.avg})
+        avg_loss = aloss.avg
+        self.logger.log({'ctrl/tr_loss': avg_loss})
+        return avg_loss
 
     @torch.no_grad()
     def _val_controller(self, loader, criterion):
@@ -414,16 +418,16 @@ class Model:
         optimizer = self.controller.get_optimizer()
         train_loader, val_loader = self._split(dataset)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=epoch_tol // 2, verbose=True)
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.25, patience=epoch_tol // 2, verbose=True)
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
             self.logger.log({'ctrl/epoch': epoch})
-            self._train_controller(train_loader, criterion, optimizer)
+            loss = self._train_controller(train_loader, criterion, optimizer)
+            lr_scheduler.step(loss)
             if val_loader:
                 loss = self._val_controller(val_loader, criterion)
                 stopper.update(loss)
-                lr_scheduler.step(loss)
             self.logger.commit()
 
     @torch.no_grad()
