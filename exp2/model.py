@@ -319,7 +319,7 @@ class Model:
         criterion = nn.CrossEntropyLoss(weight=weight)
         optimizer = self._create_classifier_optimizer(classifier)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=epoch_tol // 2)
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=epoch_tol // 2, verbose=True)
 
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
@@ -414,7 +414,7 @@ class Model:
         optimizer = self.controller.get_optimizer()
         train_loader, val_loader = self._split(dataset)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=epoch_tol // 2)
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=epoch_tol // 2, verbose=True)
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break

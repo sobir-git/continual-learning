@@ -76,6 +76,8 @@ def parse_args(args=None) -> Config:
                              'This will increase weight of otherset by that ratio.')
     parser.add_argument('--weight_decay', type=float, default=0.001, help='Weight decay ')
 
+    parser.add_argument('--wandb_group', type=str, help='W&B group in experiments')
+
 
     if args is not None:
         opt = parser.parse_args(args)

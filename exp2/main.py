@@ -66,5 +66,6 @@ def run(config):
 
 if __name__ == '__main__':
     config = parse_args()
-    wandb.init(project='exp2', group='test', config=config)
+    group = config.wandb_group or 'test'
+    wandb.init(project='exp2', group=group, config=config, config_exclude_keys={'wandb_group'})
     run(config)
