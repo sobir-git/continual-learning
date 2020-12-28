@@ -183,6 +183,7 @@ def create_models(config, device) -> (FeatureExtractor, callable):
     load_model(PRETRAINED, config.pretrained)
     fe, head_constructor = split_model(config, PRETRAINED)
     fe = FeatureExtractor(config, fe)
+    fe.eval()
     fe = fe.to(device)
 
     def classifier_constructor(classes, id=None) -> Classifier:
@@ -260,12 +261,16 @@ class Model:
         return optim.SGD(classifier.parameters(), lr=config.clf_lr, momentum=0.9, weight_decay=config.weight_decay)
 
     def _create_classifier(self, classes):
+        """The created classifier is in train mode."""
         clf_id = len(self.classifiers)
         classifier = self._classifier_constructor(classes, id=clf_id)
         self.classifiers.append(classifier)
+        classifier.train()
         return classifier
 
     def _train_classifiers(self, classifiers, loader, criterion, optimizers):
+        for clf in classifiers:
+            clf.train()
         alosses = None
         for i, loss, alosses in self._feed_classifiers(classifiers, loader, criterion):
             optimizers[i].zero_grad()
@@ -276,6 +281,9 @@ class Model:
 
     @torch.no_grad()
     def _val_classifiers(self, classifiers, loader, criterion):
+        for clf in classifiers:
+            clf.eval()
+
         alosses = None
         for i, loss, alosses in self._feed_classifiers(classifiers, loader, criterion):
             pass
@@ -376,6 +384,7 @@ class Model:
         return create_controller(self.config, n_classifiers=len(self.classifiers), device=self.device)
 
     def _train_controller(self, loader, criterion, optimizer):
+        self.controller.train()
         aloss = None
         for loss, aloss in self._feed_controller(loader, criterion):
             optimizer.zero_grad()
@@ -385,6 +394,7 @@ class Model:
 
     @torch.no_grad()
     def _val_controller(self, loader, criterion):
+        self.controller.eval()
         aloss = None
         for _, aloss in self._feed_controller(loader, criterion):
             pass
@@ -427,6 +437,9 @@ class Model:
         Args:
             dataset (PartialDataset): cumulative testset, containing all seen classes
         """
+        self.controller.eval()
+        for clf in self.classifiers:
+            clf.eval()
 
         loader = create_loader(self.config, dataset)
         all_clf_preds = defaultdict(lambda: [list() for _ in self.classifiers])
@@ -435,8 +448,6 @@ class Model:
         all_ctrl_preds = []
         all_ctrl_outs = []
         all_labels = []
-        # contains labels of only known classes examples, per classifier
-        all_labels_closed_exclusive = [list() for _ in self.classifiers]
 
         for inputs, labels, _ in loader:
             labels_np = labels.numpy()
