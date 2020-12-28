@@ -309,15 +309,18 @@ class Model:
 
         - dataset may have otherset
         """
+        epoch_tol = self.config.clf_new_epochs_tol
+        n_epochs = self.config.clf_new_epochs
         new_classes = dataset.classes
         classifier = self._create_classifier(new_classes)
-        n_epochs = self.config.clf_new_epochs
         train_loader, val_loader = self._split(dataset)
         weight = get_class_weight(self.config, dataset)
         weight = weight.to(self.device)
         criterion = nn.CrossEntropyLoss(weight=weight)
         optimizer = self._create_classifier_optimizer(classifier)
-        stopper = TrainingStopper(tol=self.config.clf_new_epochs_tol)
+        stopper = TrainingStopper(tol=epoch_tol)
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=epoch_tol // 2)
+
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
@@ -326,6 +329,7 @@ class Model:
             if val_loader is not None:
                 losses = self._val_classifiers([classifier], val_loader, criterion)
                 stopper.update(losses[0])
+                lr_scheduler.step(losses[0])
             self.logger.commit()
         # add new class labels to classifiers mapping
         self.cls_to_clf_id.update({cls: classifier.id for cls in new_classes})
@@ -404,11 +408,13 @@ class Model:
 
     def train_new_controller(self, dataset):
         n_epochs = self.config.ctrl_epochs
+        epoch_tol = self.config.ctrl_epochs_tol
         criterion = nn.CrossEntropyLoss()
         self.controller = self._create_new_controller()
         optimizer = self.controller.get_optimizer()
         train_loader, val_loader = self._split(dataset)
-        stopper = TrainingStopper(tol=self.config.ctrl_epochs_tol)
+        stopper = TrainingStopper(tol=epoch_tol)
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=epoch_tol // 2)
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
@@ -417,6 +423,7 @@ class Model:
             if val_loader:
                 loss = self._val_controller(val_loader, criterion)
                 stopper.update(loss)
+                lr_scheduler.step(loss)
             self.logger.commit()
 
     @torch.no_grad()
