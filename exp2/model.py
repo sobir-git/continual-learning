@@ -65,7 +65,7 @@ class Classifier(nn.Module):
             return []
 
         # get local predictions
-        if open:
+        if open or not self.config.other:
             loc = torch.argmax(logits, 1)
         else:
             loc = torch.argmax(logits[:, :-1], 1)  # skip the last unit
