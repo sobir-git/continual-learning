@@ -207,8 +207,8 @@ def create_controller(config, n_classifiers, device) -> Controller:
 
 def get_class_weight(config, dataset):
     n_classes_per_phase = config.n_classes_per_phase
-    if not config.other:
-        weight = torch.ones(n_classes_per_phase) / n_classes_per_phase
+    if not config.other or len(dataset.otherset) == 0:
+        weight = torch.ones(n_classes_per_phase + config.other)
     else:
         otherset_size = len(dataset.otherset.ids)
         n_other_classes = len(dataset.otherset.classes)
@@ -226,7 +226,8 @@ def get_class_weight(config, dataset):
 
         weight = [1.] * n_new_classes + [1 / r]
         weight = torch.tensor(weight)
-        weight = weight / weight.sum()  # normalize
+
+    weight = weight / weight.sum()  # normalize
     return weight
 
 
