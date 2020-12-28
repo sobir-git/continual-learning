@@ -75,6 +75,9 @@ def parse_args(args=None) -> Config:
                         help='Class balancing considering the otherset/trainset number of classes. '
                              'This will increase weight of otherset by that ratio.')
     parser.add_argument('--weight_decay', type=float, default=0.001, help='Weight decay ')
+    parser.add_argument('--lr_patience', type=int, default=3, help='Patience epochs before decaying lr')
+    parser.add_argument('--lr_decay', type=float, default=0.25, help='Learning rate decay factor')
+
 
     parser.add_argument('--wandb_group', type=str, help='W&B group in experiments')
 

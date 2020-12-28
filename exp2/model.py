@@ -311,8 +311,9 @@ class Model:
 
         - dataset may have otherset
         """
-        epoch_tol = self.config.clf_new_epochs_tol
-        n_epochs = self.config.clf_new_epochs
+        cfg = self.config
+        epoch_tol = cfg.clf_new_epochs_tol
+        n_epochs = cfg.clf_new_epochs
         new_classes = dataset.classes
         classifier = self._create_classifier(new_classes)
         train_loader, val_loader = self._split(dataset)
@@ -321,8 +322,7 @@ class Model:
         criterion = nn.CrossEntropyLoss(weight=weight)
         optimizer = self._create_classifier_optimizer(classifier)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.25, patience=epoch_tol // 2, verbose=True)
-
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=cfg.lr_decay, patience=cfg.lr_patience, verbose=True)
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
@@ -411,14 +411,15 @@ class Model:
         return avg_loss
 
     def train_new_controller(self, dataset):
-        n_epochs = self.config.ctrl_epochs
-        epoch_tol = self.config.ctrl_epochs_tol
+        cfg = self.config
+        n_epochs = cfg.ctrl_epochs
+        epoch_tol = cfg.ctrl_epochs_tol
         criterion = nn.CrossEntropyLoss()
         self.controller = self._create_new_controller()
         optimizer = self.controller.get_optimizer()
         train_loader, val_loader = self._split(dataset)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.25, patience=epoch_tol // 2, verbose=True)
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=cfg.lr_decay, patience=cfg.lr_patience, verbose=True)
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
