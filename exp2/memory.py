@@ -30,7 +30,8 @@ class Memory:
 
     def get_dataset(self):
         ids = self.get_all_ids()
-        return PartialDataset(self.source, ids, self.train_transform, test_transform=self.test_transform, classes=self.get_classes())
+        return PartialDataset(self.source, ids, self.train_transform, test_transform=self.test_transform,
+                              classes=self.get_classes())
 
     def update(self, ids: np.ndarray, scores, new_classes: List[int]):
         """ Update memory with new classes """

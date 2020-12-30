@@ -29,7 +29,7 @@ def run(config):
         if config.memory_sampler != 'greedy' and phase > 1:
             console_logger.info('Computing importance scores')
             # here the importance scores are the maximum logit of the previous controller
-            new_ids, fresh_scores = model.compute_importance_scores(trainset)
+            new_ids, fresh_scores = model.compute_fresh_importance_scores(trainset)
         else:
             # equal scores
             new_ids = trainset.ids[:]
@@ -52,7 +52,7 @@ def run(config):
 
         console_logger.info('Training a new controller')
         # train a new controller
-        model.train_new_controller(memory.get_dataset())
+        model.train_a_new_controller(memory.get_dataset())
 
         if config.memory_sampler != 'greedy':
             console_logger.info('Updating importance scores in memory')

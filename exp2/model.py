@@ -1,6 +1,7 @@
 import copy
 import itertools
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+from functools import reduce, partial
 from typing import List, Union
 
 import sklearn
@@ -57,18 +58,18 @@ class Classifier(nn.Module):
             loc.append(self._cls_idx.get(lbl, n))
         return torch.tensor(loc, device=device)
 
-    def get_predictions(self, logits: torch.Tensor, open=True) -> List[int]:
+    def get_predictions(self, outputs: torch.Tensor, open=True) -> List[int]:
         """Get classifier predictions. The predictions contain actual class labels, not the local ones.
         If open, the 'other' category will be considered and will have label -1.
         """
-        if logits.size(0) == 0:
+        if outputs.size(0) == 0:
             return []
 
         # get local predictions
         if open or not self.config.other:
-            loc = torch.argmax(logits, 1)
+            loc = torch.argmax(outputs, 1)
         else:
-            loc = torch.argmax(logits[:, :-1], 1)  # skip the last unit
+            loc = torch.argmax(outputs[:, :-1], 1)  # skip the last unit
 
         r = []
         n_classes = len(self.classes)
@@ -233,8 +234,8 @@ def get_class_weight(config, dataset):
 
 
 def get_lr_scheduler(cfg, optimizer):
-    return optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=cfg.lr_decay, patience=cfg.lr_patience, verbose=True,
-                                         min_lr=0.00001)
+    return optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=cfg.lr_decay, patience=cfg.lr_patience,
+                                                verbose=True, min_lr=0.00001)
 
 
 class Model:
@@ -270,12 +271,10 @@ class Model:
         clf_id = len(self.classifiers)
         classifier = self._classifier_constructor(classes, id=clf_id)
         self.classifiers.append(classifier)
-        classifier.train()
         return classifier
 
     def _train_classifiers(self, classifiers, loader, criterion, optimizers):
-        for clf in classifiers:
-            clf.train()
+        self.set_train(True)
         alosses = None
         for i, loss, alosses in self._feed_classifiers(classifiers, loader, criterion):
             optimizers[i].zero_grad()
@@ -298,13 +297,22 @@ class Model:
         self.logger.log({'clf/' + str(clf.id) + '/val_loss': avg_losses[i] for i, clf in enumerate(classifiers)})
         return avg_losses
 
+    def _feed_feature_extractor(self, loader):
+        """Feed the samples to the feature extractor and yield namedtuple(['ids', 'inputs', 'features', 'labels', 'labels_np'])"""
+        fields = ['ids', 'inputs', 'features', 'labels', 'labels_np']
+        feat_out = namedtuple('FeatureExtractorOut', fields)
+        for inputs, labels, ids in loader:
+            labels_np = labels.numpy()
+            inputs, labels = inputs.to(self.device), labels.to(self.device)
+            features = self.feature_extractor(inputs)
+            yield feat_out(ids, inputs, features, labels, labels_np)
+
     def _feed_classifiers(self, classifiers: List[Classifier], loader, criterion):
         alosses = [AverageMeter() for _ in classifiers]
-        for inputs, labels, _ in loader:
-            inputs, labels = inputs.to(self.device), labels.to(self.device)
-            out = self.feature_extractor(inputs)
+        for nt in self._feed_feature_extractor(loader):
+            features, labels, inputs = nt.features, nt.labels, nt.inputs
             for i, clf in enumerate(classifiers):
-                output = clf(out)
+                output = clf(features)
                 loc_labels = clf.localize_labels(labels)
                 loss = criterion(output, loc_labels)
                 alosses[i].update(loss, inputs.size(0))
@@ -367,60 +375,65 @@ class Model:
             out.append(clf(features))
         return out
 
-    def _feed_controller(self, loader, criterion=None):
-        """Feed controller with the given dataloader, and yield results as a generator.
-        Yields:
-            if criterion is not None, yields (loss, average loss meter); else (logits, class labels, ids),
-        """
-        aloss = AverageMeter()
-        for inputs, labels, ids in loader:
-            inputs, labels = inputs.to(self.device), labels.to(self.device)
-            features = self.feature_extractor(inputs)
-            if self.config.ctrl_pos == 'before':
-                ctrl_out = self.controller(features)
-            else:
-                with torch.no_grad():
-                    _clf_outs = self._forward_classifiers(features)
-                ctrl_out = self.controller(_clf_outs)
+    def _forward_controller(self, features, clf_no_grad=False):
+        if self.config.ctrl_pos == 'before':
+            return self.controller(features)
+        with torch.set_grad_enabled(clf_no_grad):
+            _clf_outs = self._forward_classifiers(features)
+        return self.controller(_clf_outs)
 
-            if criterion is None:
-                yield ctrl_out, labels, ids
-            else:
-                labels = self._group_labels(labels)
-                loss = criterion(ctrl_out, labels)
-                aloss.update(loss, inputs.size(0))
-                yield loss, aloss
+    def _feed_controller(self, loader, criterion=None):
+        """Feed controller with the given dataloader, and yield results as a generator. The classifiers
+        are forwarded with no gradients.
+        Yields:
+            if criterion is not None, yields namedtuple(loss, average loss meter); else namedtuple(ctrl_outs, class labels, ids),
+        """
+        nt = namedtuple('CtrlOut', ['ids', 'labels', 'ctrl_outs'])
+        for f in self._feed_feature_extractor(loader):
+            labels, features, ids = f.labels, f.features, f.ids
+            ctrl_outs = self._forward_controller(features, clf_no_grad=True)
+            yield nt(ids, labels, ctrl_outs)
+
+    def _get_controller_criterion(self):
+        return self._controller_criterion
 
     def _create_new_controller(self) -> Controller:
-        return create_controller(self.config, n_classifiers=len(self.classifiers), device=self.device)
+        self._controller_criterion = nn.CrossEntropyLoss()
+        controller = create_controller(self.config, n_classifiers=len(self.classifiers), device=self.device)
+        return controller
 
     def _train_controller(self, loader, criterion, optimizer):
+        """Train the controller. Only train the controller. Classifiers are kept frozen."""
+        # set everything to eval except for the controller
+        self.set_train(False)
         self.controller.train()
-        aloss = None
-        for loss, aloss in self._feed_controller(loader, criterion):
+
+        for cout in self._feed_controller(loader, criterion):
+            ctrl_outs, labels = cout.ctrl_outs, cout.labels
+            loss = self._compute_controller_loss(ctrl_outs, labels)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        avg_loss = aloss.avg
-        self.logger.log({'ctrl/tr_loss': avg_loss})
-        return avg_loss
 
     @torch.no_grad()
     def _val_controller(self, loader, criterion):
-        self.controller.eval()
-        aloss = None
-        for _, aloss in self._feed_controller(loader, criterion):
-            pass
+        self.set_train(False)
+        aloss = AverageMeter()
+        for cout in self._feed_controller(loader, criterion):
+            ctrl_outs, labels = cout.ctrl_outs, cout.labels
+            loss = self._compute_controller_loss(ctrl_outs, labels)
+            aloss.update(loss, n=labels.size(0))
         avg_loss = aloss.avg
         self.logger.log({'ctrl/val_loss': avg_loss})
         return avg_loss
 
-    def train_new_controller(self, dataset):
+    def train_a_new_controller(self, dataset):
+        """Create a new controller and train it. It will replace the current controller with the new one."""
         cfg = self.config
         n_epochs = cfg.ctrl_epochs
         epoch_tol = cfg.ctrl_epochs_tol
-        criterion = nn.CrossEntropyLoss()
         self.controller = self._create_new_controller()
+        criterion = self._get_controller_criterion()
         optimizer = self.controller.get_optimizer()
         train_loader, val_loader = self._split(dataset)
         stopper = TrainingStopper(tol=epoch_tol)
@@ -435,6 +448,26 @@ class Model:
                 lr_scheduler.step(loss)
                 stopper.update(loss)
             self.logger.commit()
+
+    def _forward_controller_and_classifiers(self, features):
+        clf_outs = self._forward_classifiers(features)
+        if self.config.ctrl_pos == 'before':
+            ctrl_outs = self.controller(features)
+        else:
+            ctrl_outs = self.controller(clf_outs)
+        return clf_outs, ctrl_outs
+
+    def _feed_everything(self, loader):
+        """
+        Feed the samples and yield namedtuple(['ids', 'inputs', 'clf_out', 'ctrl_outs', 'labels_np', 'labels', ])
+        for every batch.
+        """
+        fields = ['ids', 'inputs', 'clf_outs', 'ctrl_outs', 'labels_np', 'labels', ]
+        nt = namedtuple('EverythingOut', fields)
+        for f in self._feed_feature_extractor(loader):
+            ids, inputs, labels_np, labels, features = f.ids, f.inputs, f.labels_np, f.labels, f.features
+            clf_outs, ctrl_outs = self._forward_controller_and_classifiers(features)
+            yield nt(ids, inputs, clf_outs, ctrl_outs, labels_np, labels)
 
     @torch.no_grad()
     def test(self, dataset):
@@ -454,9 +487,7 @@ class Model:
         Args:
             dataset (PartialDataset): cumulative testset, containing all seen classes
         """
-        self.controller.eval()
-        for clf in self.classifiers:
-            clf.eval()
+        self.set_train(False)
 
         loader = create_loader(self.config, dataset)
         all_clf_preds = defaultdict(lambda: [list() for _ in self.classifiers])
@@ -466,18 +497,11 @@ class Model:
         all_ctrl_outs = []
         all_labels = []
 
-        for inputs, labels, _ in loader:
-            labels_np = labels.numpy()
+        for e in self._feed_everything(loader):
+            labels_np, labels, clf_outs, ctrl_outs = e.labels_np, e.labels, e.clf_outs, e.ctrl_outs
             all_labels.extend(labels_np)
-            inputs, labels = inputs.to(self.device), labels.to(self.device)
-            features = self.feature_extractor(inputs)
-            clf_outs = self._forward_classifiers(features)
-            if self.config.ctrl_pos == 'before':
-                ctrl_out = self.controller(features)
-            else:
-                ctrl_out = self.controller(clf_outs)
-            all_ctrl_outs.extend(ctrl_out.tolist())
-            all_ctrl_preds.extend(torch.argmax(ctrl_out, 1).tolist())
+            all_ctrl_outs.extend(ctrl_outs.tolist())
+            all_ctrl_preds.extend(torch.argmax(ctrl_outs, 1).tolist())
 
             for i, (clf_out, clf) in enumerate(zip(clf_outs, self.classifiers)):
                 excl_idx = np_a_in_b(labels_np, clf.classes)  # indices that contain known labels to this classifier
@@ -565,18 +589,26 @@ class Model:
     @torch.no_grad()
     def _compute_importance_scores(self, dataset, score_function):
         """
+        Compute importance scores based on the classifiers and controller's output.
+        The score_function is a function receiving the arguments (clf_outputs, ctrl_outputs, labels)
+        and returning score value for each batch sample.
         Args:
             dataset (Dataset):
-            score_function (callable): function(logits, class labels) -> scores
+            score_function (callable): function(clf_outputs: list[torch.tensor], ctrl_outputs: torch.tensor, labels: torch.tensor) -> scores (np.ndarray)
 
         Returns:
             (np.ndarray, np.ndarray): ids and scores
         """
+        # set the model into evaluation mode
+        self.set_train(False)
+
         loader = create_loader(self.config, dataset)
         all_scores = []
         all_ids = []
-        for logits, labels, ids in self._feed_controller(loader):
-            scores = score_function(logits, labels)
+
+        for eout in self._feed_everything(loader):
+            ids, clf_outs, ctrl_outs, labels = eout.ids, eout.clf_outs, eout.ctrl_outs, eout.labels
+            scores = score_function(clf_outs, ctrl_outs, labels)
             all_scores.extend(scores.tolist())
             all_ids.extend(ids.tolist())
 
@@ -584,9 +616,14 @@ class Model:
         all_scores = np.array(all_scores)
         return all_ids, all_scores
 
-    def compute_importance_scores(self, dataset):
-        """The importance scores are computed by taking the maximum logit at the recent controller's output,
-        which is not trained with the new classes.
+    def compute_fresh_importance_scores(self, dataset):
+        """
+        Computes importance scores for the new clsas samples which the controller has never seen. (Although the
+        classifier might have seend).
+        The importance scores here are computed by taking the maximum value of all previous classifiers outputs
+        excluding their "other" output units (if present).
+
+        Warning: this function must be called before the previous classifier are updated. Otherwise it would be meaningless.
         """
         assert self.controller.n_classifiers == len(self.classifiers)
         assert dataset.otherset is None, "No otherset allowed here."
@@ -594,18 +631,49 @@ class Model:
         # assert set(self.controller.classes).isdisjoint(
         #     dataset.classes), "controller shouldn't know the classes, probably you are computing the scores after new controller is created"
 
-        def score_function(logits, *args):
-            return torch.max(logits, 1)[0]
+        def _score_function(clf_outs, ctrl_outs, labels, ignore_last_unit=False):
+            # 1. for each sample loop through the all classifiers all their outputs, conditionally omitting last units
+            # 2. get the maximum value
+            # the following is a list, whose elements correspond to batch samples
+            if ignore_last_unit:
+                clf_outs = [outs[:, :-1] for outs in clf_outs]
+            max_per_classifier_sample = [torch.max(outs, 1)[0] for outs in clf_outs]
+            max_per_sample = reduce(torch.maximum, max_per_classifier_sample)
+            max_per_sample = max_per_sample.cpu().numpy()
+            return max_per_sample
 
+        score_function = partial(_score_function, ignore_last_unit=self.config.other)
         return self._compute_importance_scores(dataset, score_function)
 
     def recompute_importance_scores(self, dataset):
-        """This will recompute importance scores on the dataset that is already known to the controller"""
+        """This will recompute importance scores. It assumes the contoller is already familiar with classes inside.
+        The importance scores here are computed as the loss of the controller.
+        """
         criterion = torch.nn.CrossEntropyLoss(reduction='none')
 
-        def score_function(logits, cls_labels):
-            labels = self._group_labels(cls_labels)
-            loss = criterion(logits, labels)
-            return loss  # loss as an importance score
+        def score_function(clf_outs, ctrl_outs, labels):
+            labels = self._group_labels(labels)
+            loss = criterion(ctrl_outs, labels)
+            return loss
 
         return self._compute_importance_scores(dataset, score_function)
+
+    def _set_controller_train(self, train):
+        if self.controller is not None:
+            self.controller.train(train)
+
+    def _set_classifiers_train(self, train):
+        for clf in self.classifiers:
+            clf.train(train)
+
+    def set_train(self, train=False):
+        """Set the model and its parts into training or evaluation mode."""
+        self._set_controller_train(train)
+        self._set_classifiers_train(train)
+
+    def _compute_controller_loss(self, ctrl_outs, labels):
+        """Compute controller loss given its outputs and class labels.
+        This will first map the labels into classifier ids and then apply Cross-entropy loss"""
+        labels = self._group_labels(labels)
+        criterion = self._controller_criterion
+        return criterion(ctrl_outs, labels)
