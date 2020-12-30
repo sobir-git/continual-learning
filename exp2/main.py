@@ -26,7 +26,7 @@ def run(config):
         trainset, testset, cumul_testset = data.get_phase_data(phase)
 
         # compute importance scores of the training samples, (before mixing with otherset!)
-        if config.memory_sampler != 'greedy' and phase > 1:
+        if config.memory_sampler == 'loss_aware' and phase > 1:
             console_logger.info('Computing importance scores')
             # here the importance scores are the maximum logit of the previous controller
             new_ids, fresh_scores = model.compute_fresh_importance_scores(trainset)
