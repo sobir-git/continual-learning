@@ -207,20 +207,33 @@ def create_controller(config, n_classifiers, device) -> Controller:
     return net
 
 
-def get_class_weight(config, dataset):
-    n_classes_per_phase = config.n_classes_per_phase
-    if not config.other or len(dataset.otherset) == 0:
-        weight = torch.ones(n_classes_per_phase + config.other)
+def get_class_weights(config, newset, otherset=None):
+    """Return class weights for training a new classifier.
+
+    If otherset is None, it will return equal weight for all classes. Otherwise it will return weights
+    according to the config, for all classes and "other"(at the last index).
+
+    Args:
+        newset (PartialDataset): the dataset with samples of new classes
+        otherset (PartialDataset, optional): the dataset with samples of old classes, all of which will be considered
+            as one class, namely "other".
+    """
+
+    n_new_classes = len(newset.classes)
+    if otherset is None:
+        # return equal weights
+        weight = torch.ones(n_new_classes)
+    elif len(otherset) == 0:
+        weight = torch.tensor([1.] * n_new_classes + [0.])
     else:
-        otherset_size = len(dataset.otherset.ids)
-        n_other_classes = len(dataset.otherset.classes)
-        n_new_classes = len(dataset.classes)
-        new_samples_size = len(dataset.ids)
+        otherset_size = len(otherset)
+        newset_size = len(newset)
+        n_other_classes = len(otherset.classes)
         r = 1
 
         # account for otherset size
         if config.balance_other_samplesize:
-            r *= otherset_size / new_samples_size
+            r *= otherset_size / newset_size
 
         # account for num of classes
         if config.balance_other_classsize:
@@ -229,7 +242,8 @@ def get_class_weight(config, dataset):
         weight = [1.] * n_new_classes + [1 / r]
         weight = torch.tensor(weight)
 
-    weight = weight / weight.sum()  # normalize
+    # normalize weights
+    weight = weight / weight.sum()
     return weight
 
 
@@ -318,22 +332,25 @@ class Model:
                 alosses[i].update(loss, inputs.size(0))
                 yield i, loss, alosses
 
-    def train_new_classifier(self, dataset):
+    def train_new_classifier(self, newset: PartialDataset, otherset: PartialDataset = None):
         """Train a new classifier on the dataset. Optionally given otherset that contains
         examples from unknown classes.
 
-        - dataset may have otherset
+        Args:
+            newset (PartialDataset): dataset of new class samples
+            otherset (optional, PartialDataset): dataset of old class samples( serving as a "other" category)
         """
         cfg = self.config
         epoch_tol = cfg.clf_new_epochs_tol
         n_epochs = cfg.clf_new_epochs
-        new_classes = dataset.classes
+        new_classes = newset.classes
         classifier = self._create_classifier(new_classes)
-        train_loader, val_loader = self._split(dataset)
-        weight = get_class_weight(self.config, dataset)
+        weight = get_class_weights(self.config, newset, otherset)
         weight = weight.to(self.device)
         criterion = nn.CrossEntropyLoss(weight=weight)
         optimizer = self._create_classifier_optimizer(classifier)
+        dataset = newset.mix(otherset) if otherset else newset
+        train_loader, val_loader = self._split(dataset)
         stopper = TrainingStopper(tol=epoch_tol)
         lr_scheduler = get_lr_scheduler(cfg, optimizer)
         for epoch in range(1, n_epochs + 1):
@@ -618,18 +635,12 @@ class Model:
 
     def compute_fresh_importance_scores(self, dataset):
         """
-        Computes importance scores for the new clsas samples which the controller has never seen. (Although the
-        classifier might have seend).
-        The importance scores here are computed by taking the maximum value of all previous classifiers outputs
+        Computes importance scores for the new class samples using only the classifiers (not the controller).
+        Here, the importance scores are computed by taking the maximum value of all previous classifiers outputs
         excluding their "other" output units (if present).
 
         Warning: this function must be called before the previous classifier are updated. Otherwise it would be meaningless.
         """
-        assert self.controller.n_classifiers == len(self.classifiers)
-        assert dataset.otherset is None, "No otherset allowed here."
-
-        # assert set(self.controller.classes).isdisjoint(
-        #     dataset.classes), "controller shouldn't know the classes, probably you are computing the scores after new controller is created"
 
         def _score_function(clf_outs, ctrl_outs, labels, ignore_last_unit=False):
             # 1. for each sample loop through the all classifiers all their outputs, conditionally omitting last units

@@ -37,9 +37,8 @@ def run(config):
 
         console_logger.info('Training a new classifier')
         # train a new classifier on new samples, (by assigning otherset first)
-        if config.other:  # assign otherset
-            trainset.set_otherset(memory.get_dataset())
-        model.train_new_classifier(trainset)
+        otherset = memory.get_dataset() if config.other else None
+        model.train_new_classifier(trainset, otherset=otherset)
 
         console_logger.info('Updating memory')
         # add new training samples to memory

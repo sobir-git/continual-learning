@@ -20,43 +20,26 @@ class PartialDataset(Dataset):
         self.transform = transform
         self.test_transform = test_transform
         self.source = source
-        self.ids = ids  # only self ids, no otherset when involved
+        self.ids: np.ndarray = ids  # only self ids, no otherset when involved
         self.labels = self.get_labels(self.source)[self.ids]
         self._classes = classes if classes is not None \
             else list(set(self.labels))
-        self.otherset = None
 
     @property
     def classes(self):
-        """Number of classes only in self (not including otherset)"""
+        """The list of classes only in self (not including otherset)"""
         return self._classes
 
     def __getitem__(self, item):
         """From self and otherset(if exists)."""
-        if item < len(self.ids):
-            id = self.ids[item]
-            input, label = self.source[id]
-            input = self.transform(input)
-            return input, label, id
-        else:
-            return self.otherset[item - len(self.ids)]  # input, label id
+        id = self.ids[item]
+        input, label = self.source[id]
+        input = self.transform(input)
+        return input, label, id
 
     def __len__(self):
         """Length of self + otherset"""
-        n = len(self.ids)
-        if self.otherset:
-            n += len(self.otherset)
-        return n
-
-    def _remove_otheret(self):
-        self.otherset = None
-
-    def set_otherset(self, dataset):
-        assert isinstance(dataset, PartialDataset)
-        assert dataset.otherset is None, "Otherset shouldn't have otherset"
-        assert dataset.source is self.source
-        assert set(dataset.classes).isdisjoint(self._classes)
-        self.otherset = dataset
+        return len(self.ids)
 
     @classmethod
     def from_classes(cls, source, transform, classes, **kwargs):
@@ -81,29 +64,26 @@ class PartialDataset(Dataset):
         """Split into train and test set. If it has otherset, it will also be split in the same ratio.
         Also set val augmentation set to test ones.
         """
-        source = self.source
-
         train_ids, test_ids = \
             train_test_split(self.ids, train_size=train_size, test_size=test_size, stratify=self.labels)
-        self_train = PartialDataset(source, train_ids, self.transform)
-        self_test = PartialDataset(source, test_ids, self.test_transform)
-
-        if self.otherset:
-            o_train_ids, o_test_ids = \
-                train_test_split(self.otherset.ids, train_size=train_size, test_size=test_size,
-                                 stratify=self.otherset.labels)
-            other_train = PartialDataset(source, o_train_ids, self.transform, test_transform=self.test_transform)
-            other_test = PartialDataset(source, o_test_ids, self.test_transform)
-            self_train.set_otherset(other_train)
-            self_test.set_otherset(other_test)
-
+        self_train = PartialDataset(self.source, train_ids, self.transform)
+        self_test = PartialDataset(self.source, test_ids, self.test_transform)
         return self_train, self_test
 
-    def without_otherset(self):
-        """Return a new copy of the self without otherset."""
-        new_self = copy.deepcopy(self)
-        new_self._remove_otheret()
-        return new_self
+    def mix(self, otherset):
+        """Create a dataset of mixture of samples. Other properties are inherited from self.
+        Warning: it assumes that both datasets have different sets of samples.
+        """
+        # create list of classes from both dataset, the list starts with classes of self in the same order
+        classes = list(self.classes)
+        for cls in otherset.classes:
+            if cls not in classes:
+                classes.append(cls)
+        source = self.source
+        ids = np.concatenate([self.ids, otherset.ids])
+        transform = self.transform
+        test_transform = self.test_transform
+        return self.__class__(source, ids, transform, classes=classes, test_transform=test_transform)
 
 
 class CIData:
