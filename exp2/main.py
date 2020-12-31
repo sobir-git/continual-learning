@@ -54,7 +54,8 @@ def run(config):
         # train a new controller
         model.train_a_new_controller(memory.get_dataset())
 
-        if config.memory_sampler != 'greedy':
+        # update memory
+        if config.memory_sampler != 'greedy' and config.update_scores:
             console_logger.info('Updating importance scores in memory')
             # recompute scores with the new controller, these scores are more accurate
             ids, scores = model.recompute_importance_scores(memory.get_dataset())

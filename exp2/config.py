@@ -46,6 +46,7 @@ def parse_args(args=None) -> Config:
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
     parser.add_argument('--memory_size', type=int, default=1000, help='Memory size')
     parser.add_argument('--memory_sampler', type=str, default='greedy', help='Memory sampler', choices=['greedy', 'loss_aware'])
+    parser.add_argument('--update_scores', action='store_true', help='Update memory scores at each phase.')
     parser.add_argument('--val_size', type=float, default=0.2,
                         help='Validation size when training classifiers and controller')
     parser.add_argument('--class_order_seed', type=int, default=-1,
