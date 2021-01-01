@@ -45,7 +45,7 @@ def parse_args(args=None) -> Config:
     parser.add_argument('--update_classifiers', action='store_true', help='Update previous classifiers')
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
     parser.add_argument('--memory_size', type=int, default=1000, help='Memory size')
-    parser.add_argument('--memory_sampler', type=str, default='greedy', help='Memory sampler', choices=['greedy', 'loss_aware'])
+    # parser.add_argument('--memory_sampler', type=str, default='greedy', help='Memory sampler', choices=['greedy', 'loss_aware'])
     parser.add_argument('--update_scores', action='store_true', help='Update memory scores at each phase.')
     parser.add_argument('--val_size', type=float, default=0.2,
                         help='Validation size when training classifiers and controller')
@@ -60,6 +60,9 @@ def parse_args(args=None) -> Config:
                         help='Whether to clone from the pretrained model when initializing classifiers')
     parser.add_argument('--ctrl_pos', type=str, required=True, choices=['before', 'after'],
                         help='The position of the controller. before or after the classifiers')
+    parser.add_argument('--ctrl_hidden_layer_scale', type=float, default=0., help='Set the size of the hidden layer as output size scaled by this number. If 0, no hidden layers.')
+    parser.add_argument('--ctrl_hidden_activation', type=str, default='Sigmoid', help='Activation function of hidden layer in controller.')
+
     parser.add_argument('--ctrl_lr', type=float, default=0.001, help='Learning rate of controller')
     parser.add_argument('--ctrl_epochs', type=int, default=20, help='Number of training epochs of controller')
     parser.add_argument('--ctrl_epochs_tol', type=int, default=4, help='Number of training epochs without improvement before stopping.')
@@ -76,7 +79,7 @@ def parse_args(args=None) -> Config:
     parser.add_argument('--balance_other_classsize', action='store_true',
                         help='Class balancing considering the otherset/trainset number of classes. '
                              'This will increase weight of otherset by that ratio.')
-    parser.add_argument('--weight_decay', type=float, default=0.001, help='Weight decay ')
+    parser.add_argument('--weight_decay', type=float, default=0.00001, help='Weight decay ')
     parser.add_argument('--lr_patience', type=int, default=3, help='Patience epochs before decaying lr')
     parser.add_argument('--lr_decay', type=float, default=0.25, help='Learning rate decay factor')
 

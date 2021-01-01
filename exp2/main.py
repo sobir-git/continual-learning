@@ -25,43 +25,26 @@ def run(config):
         # get the new samples
         trainset, testset, cumul_testset = data.get_phase_data(phase)
 
-        # compute importance scores of the training samples, (before mixing with otherset!)
-        if config.memory_sampler == 'loss_aware' and phase > 1:
-            console_logger.info('Computing importance scores')
-            # here the importance scores are the maximum logit of the previous controller
-            new_ids, fresh_scores = model.compute_fresh_importance_scores(trainset)
-        else:
-            # equal scores
-            new_ids = trainset.ids[:]
-            fresh_scores = np.ones_like(new_ids)
-
+        # train a new classifier on new samples
         console_logger.info('Training a new classifier')
-        # train a new classifier on new samples, (by assigning otherset first)
         otherset = memory.get_dataset() if config.other else None
         model.train_new_classifier(trainset, otherset=otherset)
 
+        # add the new training samples to memory
         console_logger.info('Updating memory')
-        # add new training samples to memory
-        memory.update(new_ids, fresh_scores, trainset.classes)
+        memory.update(ids=trainset.ids, new_classes=trainset.classes)
 
         # update previous classifiers
-        if phase > 1 and config.update_classifiers:
+        if config.update_classifiers:
             console_logger.info('Updating previous classifiers')
             model.update_prev_classifiers(memory.get_dataset())
 
-        console_logger.info('Training a new controller')
         # train a new controller
+        console_logger.info('Training a new controller')
         model.train_a_new_controller(memory.get_dataset())
 
-        # update memory
-        if config.memory_sampler != 'greedy' and config.update_scores:
-            console_logger.info('Updating importance scores in memory')
-            # recompute scores with the new controller, these scores are more accurate
-            ids, scores = model.recompute_importance_scores(memory.get_dataset())
-            memory.update_scores(ids, scores)
-
-        console_logger.info('Testing the model')
         # test the model
+        console_logger.info('Testing the model')
         model.test(cumul_testset)
 
 

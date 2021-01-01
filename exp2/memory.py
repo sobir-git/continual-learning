@@ -33,8 +33,9 @@ class Memory:
         return PartialDataset(self.source, ids, self.train_transform, test_transform=self.test_transform,
                               classes=self.get_classes())
 
-    def update(self, ids: np.ndarray, scores, new_classes: List[int]):
-        """ Update memory with new classes """
+    def update(self, ids: np.ndarray, new_classes: List[int], scores: np.ndarray=None):
+        """ Update memory with new classes. If 'scores' is None, assign equal scores.
+        """
         labels = PartialDataset.get_labels(self.source)[ids]
         assert set(labels) == set(new_classes)
 
@@ -46,6 +47,10 @@ class Memory:
         for cls in existing_classes:
             self._reduce_cls(cls, per_class + (residuals > 0))
             residuals -= 1
+
+        # if scores is None, assign equal scores
+        if scores is None:
+            scores = np.ones_like(ids)
 
         # add new classes
         for cls in new_classes:

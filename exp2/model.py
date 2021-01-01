@@ -1,4 +1,3 @@
-import copy
 import itertools
 from collections import defaultdict, namedtuple
 from functools import reduce, partial
@@ -7,11 +6,12 @@ from typing import List, Union
 import sklearn
 import torch
 from torch import nn, optim
-import torch.nn.functional as F
 import numpy as np
 
-from exp2 import models
+from exp2.classifier import Classifier
+from exp2.controller import Controller, create_controller
 from exp2.data import create_loader, PartialDataset
+from exp2.feature_extractor import create_models
 from exp2.predictor import Predictor, ByCtrl, FilteredController
 from logger import Logger
 from utils import AverageMeter, np_a_in_b, get_default_device, TrainingStopper
@@ -21,190 +21,6 @@ DEVICE = get_default_device()
 
 def get_device():
     return DEVICE
-
-
-def load_model(model, path):
-    model.load_state_dict(torch.load(path))
-
-
-class FeatureExtractor(nn.Module):
-    def __init__(self, config, net):
-        super().__init__()
-        self.net = net
-
-    def forward(self, input):
-        return self.net(input)
-
-
-class Classifier(nn.Module):
-    def __init__(self, config, net, classes, id):
-        super().__init__()
-        self.net = net
-        self.id = id
-        self._cls_idx = {cls: i for i, cls in enumerate(classes)}
-        self.config = config
-        self.classes = list(classes)
-
-    def forward(self, input):
-        return self.net(input)
-
-    def localize_labels(self, labels: torch.Tensor):
-        """Convert labels to local labels in range 0, ..., n, where n-1 is the output units.
-        'Other' category is mapped to n, the last output unit."""
-        loc = []
-        device = labels.device
-        n = len(self.classes)
-        for lbl in labels.tolist():
-            loc.append(self._cls_idx.get(lbl, n))
-        return torch.tensor(loc, device=device)
-
-    def get_predictions(self, outputs: torch.Tensor, open=True) -> List[int]:
-        """Get classifier predictions. The predictions contain actual class labels, not the local ones.
-        If open, the 'other' category will be considered and will have label -1.
-        """
-        if outputs.size(0) == 0:
-            return []
-
-        # get local predictions
-        if open or not self.config.other:
-            loc = torch.argmax(outputs, 1)
-        else:
-            loc = torch.argmax(outputs[:, :-1], 1)  # skip the last unit
-
-        r = []
-        n_classes = len(self.classes)
-        for ll in loc.tolist():
-            if ll == n_classes:  # other category, add it as -1
-                r.append(-1)
-            else:
-                r.append(self.classes[ll])
-        return r
-
-    def map_other(self, labels: np.ndarray, excl_idx=None):
-        """Map labels of 'other' category to -1.
-
-        Args:
-            labels: the labels
-            excl_idx (optional, np.ndarray): the indices where known labels reside, if provided, will
-                help avoid unnecessary computation
-        """
-        result = np.empty_like(labels)
-        result.fill(-1)
-        if excl_idx is None:
-            excl_idx = np_a_in_b(result, self.classes)
-        result[excl_idx] = labels[excl_idx]
-        return result
-
-
-class Controller(nn.Module):
-    def __init__(self, config, n_classifiers, net=None):
-        super().__init__()
-        self.config = config
-        self.net = net
-        self.n_classifiers = n_classifiers
-
-    def get_optimizer(self):
-        return optim.SGD(params=self.parameters(), lr=self.config.ctrl_lr, momentum=0.9)
-
-    def forward(self, input):
-        assert self.net is not None
-        return self.net(input)
-
-
-class CNNController(Controller):
-    pass
-
-
-class LinearController(Controller):
-    def __init__(self, config, n_classifiers):
-        super().__init__(config, n_classifiers, None)
-        in_features = n_classifiers * (config.n_classes_per_phase + config.other)
-        self.net = nn.Linear(in_features=in_features, out_features=n_classifiers)
-
-    def forward(self, clf_outs):
-        """Assumes the classifier raw outputs in a list."""
-        # run softmax
-        clf_outs = [F.softmax(i, dim=1) for i in clf_outs]
-        clf_outs = torch.cat(clf_outs, dim=1)
-        return self.net(clf_outs)
-
-
-@torch.no_grad()
-def _reset_parameters(net: nn.Module):
-    def fn(m):
-        if hasattr(m, 'reset_parameters'):
-            m.reset_parameters()
-
-    net.apply(fn)
-
-
-def split_model(config, model):
-    """Split the model into back and head.
-    The back for being used as feature extractor, and frozen.
-    The head is in a constructor form taking number of classes
-    as parameter.
-    It assumes the model is a sequential. It assumes last layer as the linear classification layer.
-    Note: it does not clone the feature extractor.
-    """
-    assert isinstance(model, nn.Sequential)
-
-    back: nn.Sequential = model[:config.split_pos]
-    head: nn.Sequential = model[config.split_pos:]
-
-    # freeze the feature extractor
-    back.eval()
-    for param in back.parameters():
-        param.requires_grad = False
-
-    # constructor for the head
-    clf_layer: nn.Linear = head[-1]
-    assert isinstance(clf_layer, nn.Linear)
-    del head[-1]
-    in_features = clf_layer.in_features
-
-    def head_constructor(n_classes):
-        # replace the classification layer from the head with the one matching number of classes
-        layer = nn.Linear(in_features=in_features, out_features=n_classes)
-        newhead = copy.deepcopy(head)
-        newhead = nn.Sequential(*newhead, layer)
-        if not config.clone_head:
-            _reset_parameters(newhead)
-        return newhead
-
-    return back, head_constructor
-
-
-PRETRAINED = None
-
-
-def create_models(config, device) -> (FeatureExtractor, callable):
-    global PRETRAINED
-    if PRETRAINED is None:
-        PRETRAINED = models.simple_net(n_classes=20)
-    load_model(PRETRAINED, config.pretrained)
-    fe, head_constructor = split_model(config, PRETRAINED)
-    fe = FeatureExtractor(config, fe)
-    fe.eval()
-    fe = fe.to(device)
-
-    def classifier_constructor(classes, id=None) -> Classifier:
-        """id: the id assigned to the classifier"""
-        n_classes = len(classes)
-        net = head_constructor(n_classes=n_classes + config.other)
-        return Classifier(config, net, classes, id).to(device)
-
-    return fe, classifier_constructor
-
-
-def create_controller(config, n_classifiers, device) -> Controller:
-    if config.ctrl_pos == 'before':
-        _, head_constructor = split_model(config, PRETRAINED)
-        net = head_constructor(n_classes=n_classifiers)
-        net = CNNController(config, n_classifiers, net)
-    else:
-        net = LinearController(config, n_classifiers)
-    net = net.to(device)
-    return net
 
 
 def get_class_weights(config, newset, otherset=None):
@@ -414,9 +230,21 @@ class Model:
     def _get_controller_criterion(self):
         return self._controller_criterion
 
+    def _get_ctrl_idx(self):
+        """Return current controller's index. If it doesnt exists yet, return None.
+        The controller's index signifies the phase it has been created and trained. So if the
+        index is 2, this controller can predict between the first two classifiers.
+        """
+        if self.controller is None:
+            return None
+        return self.controller.idx
+
     def _create_new_controller(self) -> Controller:
+        # increment last controllers by 1 for the new one
+        idx = self._get_ctrl_idx() or 0
+        idx += 1
         self._controller_criterion = nn.CrossEntropyLoss()
-        controller = create_controller(self.config, n_classifiers=len(self.classifiers), device=self.device)
+        controller = create_controller(self.config, idx, n_classifiers=len(self.classifiers), device=self.device)
         return controller
 
     def _train_controller(self, loader, criterion, optimizer):
@@ -468,10 +296,10 @@ class Model:
 
     def _forward_controller_and_classifiers(self, features):
         clf_outs = self._forward_classifiers(features)
-        if self.config.ctrl_pos == 'before':
-            ctrl_outs = self.controller(features)
-        else:
-            ctrl_outs = self.controller(clf_outs)
+        ctrl_outs = None
+        if self.controller is not None:
+            ctrl_inputs = features if self.config.ctrl_pos == 'before' else clf_outs
+            ctrl_outs = self.controller(ctrl_inputs)
         return clf_outs, ctrl_outs
 
     def _feed_everything(self, loader):
@@ -584,7 +412,6 @@ class Model:
             pred: a dictionary [(open, excl)] -> List[predictions per classifier]
             labels: a dictionary [(open, excl)] -> List[labels per classifier]
         """
-        # why closed_excl and closed are observably same?
 
         assert preds.keys() == labels.keys()
         for (open, excl) in preds.keys():
@@ -602,72 +429,6 @@ class Model:
         with self.logger.prefix("final/" + predictor.name):
             self.logger.log_accuracies(cm, classnames=classes, log_recalls=False)
             self.logger.log_confusion_matrix(cm, classes, title='Confusion (predictor)')
-
-    @torch.no_grad()
-    def _compute_importance_scores(self, dataset, score_function):
-        """
-        Compute importance scores based on the classifiers and controller's output.
-        The score_function is a function receiving the arguments (clf_outputs, ctrl_outputs, labels)
-        and returning score value for each batch sample.
-        Args:
-            dataset (Dataset):
-            score_function (callable): function(clf_outputs: list[torch.tensor], ctrl_outputs: torch.tensor, labels: torch.tensor) -> scores (np.ndarray)
-
-        Returns:
-            (np.ndarray, np.ndarray): ids and scores
-        """
-        # set the model into evaluation mode
-        self.set_train(False)
-
-        loader = create_loader(self.config, dataset)
-        all_scores = []
-        all_ids = []
-
-        for eout in self._feed_everything(loader):
-            ids, clf_outs, ctrl_outs, labels = eout.ids, eout.clf_outs, eout.ctrl_outs, eout.labels
-            scores = score_function(clf_outs, ctrl_outs, labels)
-            all_scores.extend(scores.tolist())
-            all_ids.extend(ids.tolist())
-
-        all_ids = np.array(all_ids)
-        all_scores = np.array(all_scores)
-        return all_ids, all_scores
-
-    def compute_fresh_importance_scores(self, dataset):
-        """
-        Computes importance scores for the new class samples using only the classifiers (not the controller).
-        Here, the importance scores are computed by taking the maximum value of all previous classifiers outputs
-        excluding their "other" output units (if present).
-
-        Warning: this function must be called before the previous classifier are updated. Otherwise it would be meaningless.
-        """
-
-        def _score_function(clf_outs, ctrl_outs, labels, ignore_last_unit=False):
-            # 1. for each sample loop through the all classifiers all their outputs, conditionally omitting last units
-            # 2. get the maximum value
-            # the following is a list, whose elements correspond to batch samples
-            if ignore_last_unit:
-                clf_outs = [outs[:, :-1] for outs in clf_outs]
-            max_per_classifier_sample = [torch.max(outs, 1)[0] for outs in clf_outs]
-            max_per_sample = reduce(torch.maximum, max_per_classifier_sample)
-            max_per_sample = max_per_sample.cpu().numpy()
-            return max_per_sample
-
-        score_function = partial(_score_function, ignore_last_unit=self.config.other)
-        return self._compute_importance_scores(dataset, score_function)
-
-    def recompute_importance_scores(self, dataset):
-        """This will recompute importance scores. It assumes the contoller is already familiar with classes inside.
-        The importance scores here are computed as the loss of the controller.
-        """
-        criterion = torch.nn.CrossEntropyLoss(reduction='none')
-
-        def score_function(clf_outs, ctrl_outs, labels):
-            labels = self._group_labels(labels)
-            loss = criterion(ctrl_outs, labels)
-            return loss
-
-        return self._compute_importance_scores(dataset, score_function)
 
     def _set_controller_train(self, train):
         if self.controller is not None:
