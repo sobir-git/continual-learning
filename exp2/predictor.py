@@ -60,19 +60,19 @@ class FilteredController(Predictor):
         classifiers = givens.classifiers
         ctrl_outs = givens.ctrl_outputs
 
-        preds = []
-        # loop through the samples
-        for i in range(len(ctrl_preds)):  # TODO: cleanup
-            # choose a
-            best_clf_id = None
-            max_score = -float('inf')
-            for j in range(len(classifiers)):
-                # if classifier have predicted non-other, compare its controller score with the best one
-                if clf_preds_open[j][i] != -1:
-                    if ctrl_outs[i][j] > max_score:
-                        best_clf_id = j
-            if best_clf_id is None:
-                # no classifier found with non-other prediction, choose one what controller have predicted
-                best_clf_id = ctrl_preds[i]
-            preds.append(clf_preds_closed[best_clf_id][i])
-        return np.array(preds)
+        other_label = classifiers[0].other_label
+        predictions = []
+        # for each sample
+        for i in range(len(ctrl_preds)):
+            # filter all classifiers that predicted non-other
+            filtered = [j for j in range(len(classifiers)) if clf_preds_open[j][i] != other_label]
+
+            # if none is left, include all back
+            if len(filtered) == 0:
+                filtered = list(range(len(classifiers)))
+
+            # choose one with the highest controller score
+            chosen = torch.argmax(ctrl_outs[i, filtered]).item()
+            prediction = clf_preds_closed[chosen][i]
+            predictions.append(prediction)
+        return np.array(predictions)

@@ -16,6 +16,7 @@ def run(config):
     data = prepare_data(config)
     memory = Memory(config, data.train_source, data.train_transform, data.test_transform)
     model = Model(config, logger=logger)
+    logger.log({'class_order': data.class_order})
 
     for phase in range(1, config.n_phases + 1):
         model.phase_start(phase)
