@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Dict, TYPE_CHECKING, Iterable
 
@@ -20,7 +18,7 @@ class ChildState:
 
 @dataclass
 class ControllerState(ChildState):
-    self: Controller
+    self: 'Controller'
     outputs: torch.Tensor = None
     parent: 'ModelState' = None
     loss: torch.Tensor = None
@@ -29,7 +27,7 @@ class ControllerState(ChildState):
 
 @dataclass
 class ClassifierState(ChildState):
-    self: Classifier
+    self: 'Classifier'
     outputs: torch.Tensor = None
     parent: 'ModelState' = None
     loss: torch.Tensor = None
@@ -42,7 +40,7 @@ class ModelState:
     inputs: torch.Tensor
     features: torch.Tensor = None
     controller_state: ControllerState = None
-    classifier_states: Dict[Classifier, ClassifierState] = field(default_factory=dict)
+    classifier_states: Dict['Classifier', ClassifierState] = field(default_factory=dict)
     labels_np: np.ndarray = None
     labels: torch.Tensor = None
     phase: int = None
@@ -55,7 +53,7 @@ class ModelState:
     def get_classifiers(self):
         return list(self.classifier_states.keys())
 
-    def get_classifier_state(self, classifier: Classifier) -> ClassifierState:
+    def get_classifier_state(self, classifier: 'Classifier') -> ClassifierState:
         return self.classifier_states[classifier]
 
     def set_controller_state(self, controller_state: ControllerState):

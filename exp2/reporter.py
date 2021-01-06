@@ -1,18 +1,11 @@
-from __future__ import annotations
-
 import itertools
-from abc import ABC
 from collections import defaultdict
-from typing import TYPE_CHECKING
 
+from utils import np_a_in_b
 from exp2.classifier import Classifier
 from exp2.controller import Controller
 from exp2.predictor import Givens, Predictor
 from exp2.reporter_strings import *
-from utils import np_a_in_b
-
-if TYPE_CHECKING:
-    from exp2.model_state import ModelState, ClassifierState
 from exp2.reporter_base import *
 from logger import Logger, get_accuracy
 
@@ -22,7 +15,7 @@ class ControllerPredictionReporter(PredictionReporter):
         parents = [source]
         super().__init__(parents)
 
-    def obtain_predictions(self, content: ModelState):
+    def obtain_predictions(self, content: 'ModelState'):
         ctrl_outputs = content.controller_state.outputs
         controller = content.get_controller()
         predictions = controller.get_predictions(ctrl_outputs)
@@ -48,7 +41,7 @@ class ControllerOutputsReporter(OutputsReporter):
         parents = [source]
         super().__init__(parents)
 
-    def extract_outputs(self, content: ModelState):
+    def extract_outputs(self, content: 'ModelState'):
         ctrl_outputs = content.controller_state.outputs
         return ctrl_outputs
 
@@ -59,7 +52,7 @@ class ControllerConfusionMatrixLogger(ConfusionMatrixLogger):
 
 
 class ControllerLabelGatherer(LabelGatherer):
-    def extract_labels(self, content: ModelState):
+    def extract_labels(self, content: 'ModelState'):
         controller = content.get_controller()
         labels = content.labels_np
         ctrl_labels = controller.group_labels(labels)
@@ -86,7 +79,7 @@ class ControllerLossLogger(IncrementalMetricLogger):
         parents = [source]
         super().__init__(parents=parents, logger=logger, name=name)
 
-    def extract_values(self, state: ModelState):
+    def extract_values(self, state: 'ModelState'):
         ctrl_state = state.controller_state
         loss = ctrl_state.loss
         assert loss is not None
@@ -100,7 +93,7 @@ class ClassifierBaseReporter(BasicReporter):
         super().__init__(**kwargs)
         self.classifier = classifier
 
-    def get_classifier_state(self, state: ModelState):
+    def get_classifier_state(self, state: 'ModelState'):
         return state.get_classifier_state(self.classifier)
 
 
@@ -108,7 +101,7 @@ class ClassifierLossLogger(ClassifierBaseReporter, IncrementalMetricLogger):
     def __init__(self, classifier, source: SourceReporter, name: str, logger: Logger):
         super().__init__(classifier=classifier, parents=[source], name=name, logger=logger)
 
-    def extract_values(self, state: ModelState):
+    def extract_values(self, state: 'ModelState'):
         clf_state = self.get_classifier_state(state)
         loss, batch_size = clf_state.loss, clf_state.batchsize
         losses = np.full(batch_size, loss.item())  # we want average sample loss
@@ -121,7 +114,7 @@ class ClassifierPredictionReporter(ClassifierBaseReporter, PredictionReporter):
         self.is_open = is_open
         self.is_exclusive = is_exclusive
 
-    def obtain_predictions(self, state: ModelState):
+    def obtain_predictions(self, state: 'ModelState'):
         clf_state = self.get_classifier_state(state)
         outputs = clf_state.outputs
         labels = clf_state.labels_np
@@ -141,7 +134,7 @@ class ClassifierLabelGatherer(ClassifierBaseReporter, LabelGatherer):
         super().__init__(classifier, source=source)
         self.is_exclusive = is_exclusive
 
-    def extract_labels(self, state: ModelState):
+    def extract_labels(self, state: 'ModelState'):
         labels_np = state.labels_np
         if self.is_exclusive:
             classes = self.classifier.classes
