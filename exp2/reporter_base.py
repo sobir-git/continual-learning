@@ -1,23 +1,25 @@
-from __future__ import annotations
-
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
-from typing import List, Union, TypeVar, Type, Dict, Tuple, Iterator, TYPE_CHECKING, Sequence, Callable
-
-import sklearn
-from typing_extensions import Protocol
+from typing import List, Union, TypeVar, Type, Iterator, Sequence, Callable
 
 import numpy as np
+import sklearn
 import torch
+from typing_extensions import Protocol
 
-if TYPE_CHECKING:
-    from exp2.model_state import ModelState
+from exp2.model_state import ModelState
 from logger import Logger, get_accuracy
 
 T = TypeVar('T')
 Tc = TypeVar("Tc", covariant=True)
-TMatrices = Dict[Tuple[bool, bool], np.ndarray]
-LOG_EVERY_N_SAMPLES = 0
+
+
+class HasFinalContent(Protocol[Tc]):
+    _final_content: Tc
+
+    def compute_final_content(self) -> Tc: ...
+
+    def is_ended(self) -> bool: ...
 
 
 class ReporterBase:
@@ -30,23 +32,8 @@ class ReporterBase:
         pass
 
 
-# class HasGetFinalContent(Protocol[Tc]):
-#     _final_content: Tc
-#
-
-
-class HasFinalContent(Protocol[Tc]):
-    _final_content: Tc
-
-    def compute_final_content(self) -> Tc: ...
-
-    def is_ended(self) -> bool: ...
-    #
-    # def get_final_content(self) -> Any: ...
-
-
 class ParentReporter(ReporterBase):
-    children: List[ChildReporter]
+    children: List['ChildReporter']
 
     def __post_init__(self):
         super(ParentReporter, self).__post_init__()
@@ -88,7 +75,7 @@ class ChildReporter(ReporterBase, ABC):
     def update(self, parent: ParentReporter, content):
         assert parent in self._parents
 
-    def parent_ended(self, parent: EndableReporter, content):
+    def parent_ended(self, parent: ParentReporter, content):
         """Inform that a parent reporter has ended."""
         ended_parents = self._ended_parents
         parents = self._parents
@@ -111,7 +98,7 @@ class ChildReporter(ReporterBase, ABC):
 class BasicReporter(ChildReporter, ParentReporter):
     """A report being child and parent"""
 
-    def update(self, parent: TReporter, content):
+    def update(self, parent: ParentReporter, content):
         super(BasicReporter, self).update(parent, content)
         for child in self.children:
             child.update(parent, content)
