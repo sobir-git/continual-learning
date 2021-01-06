@@ -33,8 +33,13 @@ class StepLR(sch.StepLR):
         super().step()
 
 
+class ConstantLR(StepLR):
+    n_parts = 0.5
+
+
 mapping = {'exp': ExponentialLR,
-           'step': StepLR}
+           'step': StepLR,
+           'const': ConstantLR}
 
 
 def _get_lr_scheduler(config, optimizer):

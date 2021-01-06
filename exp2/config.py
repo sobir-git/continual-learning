@@ -39,8 +39,8 @@ class Config:
 
 
 def parse_args(args=None) -> Config:
-    lr_choices = ['exp', 'step']
-    default_lr_scheduler = 'step'
+    lr_choices = ['exp', 'step', 'const']
+    default_lr_scheduler = 'const'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--logdir', type=str, default='./logs/', help='Directory where all logs are stored')
