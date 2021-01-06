@@ -179,7 +179,7 @@ class Model:
 
     def _train_a_new_controller_epoch_start(self, epoch, lr_scheduler):
         self.logger.log({CTRL_EPOCH: epoch})
-        lr = lr_scheduler.get_last_lr()
+        lr = lr_scheduler.get_last_lr()[0]
         self.logger.log({CTRL_LR: lr})
 
     def _train_a_new_controller_epoch_end(self, epoch):
