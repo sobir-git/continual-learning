@@ -22,23 +22,47 @@ class ExponentialLR(sch.ExponentialLR):
 
 
 class StepLR(sch.StepLR):
-    n_parts = 4
-
     def __init__(self, config, optimizer):
-        step_size = config.epochs // self.n_parts
-        gamma = compute_gamma(config.min_lr, config.lr, self.n_parts - 1)
+        n_parts = int(config.lr_scheduler[-1])
+        step_size = config.epochs // n_parts
+        gamma = compute_gamma(config.min_lr, config.lr, n_parts - 1)
         super(StepLR, self).__init__(optimizer, step_size, gamma)
 
     def step(self, *args):
         super().step()
 
 
-class ConstantLR(StepLR):
-    n_parts = 0.5
+class ConstantLR(sch.LambdaLR):
+    def __init__(self, config, optimizer):
+        lr_lambda = lambda epoch: 1
+        super().__init__(optimizer, lr_lambda)
+
+    def step(self, *args):
+        super(ConstantLR, self).step()
+
+
+class PolynomialLR(sch.LambdaLR):
+    def __init__(self, config, optimizer):
+        power = int(config.lr_scheduler[-1])
+        epochs = config.epochs
+        min_lr = config.min_lr
+        base_lr = config.lr
+        lr_lambda = lambda ep: (min_lr + (base_lr - min_lr) * (1 - ep / (epochs - 1)) ** power) / base_lr
+        super(PolynomialLR, self).__init__(optimizer, lr_lambda)
+
+    def step(self, *args):
+        super(PolynomialLR, self).step()
 
 
 mapping = {'exp': ExponentialLR,
-           'step': StepLR,
+           'step2': StepLR,
+           'step3': StepLR,
+           'step4': StepLR,
+           'step5': StepLR,
+           'poly1': PolynomialLR,
+           'poly2': PolynomialLR,
+           'poly3': PolynomialLR,
+           'poly4': PolynomialLR,
            'const': ConstantLR}
 
 
