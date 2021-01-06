@@ -60,7 +60,7 @@ def test__get_dataset(vision_dataset):
     # create one without target transform
     dataset = vision_dataset._get_dataset(train=True, target_transform=None)
     assert dataset.target_transform is None
-    targets = dataset.labels if hasattr(dataset, 'labels') else dataset.targets
+    targets = dataset._labels if hasattr(dataset, 'labels') else dataset.targets
     assert len(targets) == 50000  # CIFAR10
 
     # create the other with target transform

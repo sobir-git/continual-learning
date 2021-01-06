@@ -1,4 +1,3 @@
-import numpy as np
 import wandb
 
 import utils
@@ -19,6 +18,7 @@ def run(config):
     model = Model(config, logger=logger)
 
     for phase in range(1, config.n_phases + 1):
+        model.phase_start(phase)
         console_logger.info(f'== Starting phase {phase} ==')
         logger.pin('phase', phase)
 
@@ -33,11 +33,11 @@ def run(config):
         # add the new training samples to memory
         console_logger.info('Updating memory')
         memory.update(ids=trainset.ids, new_classes=trainset.classes)
-
-        # update previous classifiers
-        if config.update_classifiers:
-            console_logger.info('Updating previous classifiers')
-            model.update_prev_classifiers(memory.get_dataset())
+        #
+        # # update previous classifiers
+        # if config.update_classifiers:
+        #     console_logger.info('Updating previous classifiers')
+        #     model.update_prev_classifiers(memory.get_dataset())
 
         # train a new controller
         console_logger.info('Training a new controller')
@@ -45,6 +45,7 @@ def run(config):
 
         # test the model
         console_logger.info('Testing the model')
+        model.phase_end()
         model.test(cumul_testset)
 
 

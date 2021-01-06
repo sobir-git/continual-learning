@@ -7,7 +7,7 @@ class AverageMeter:
         self.reset()
 
     @property
-    def avg(self):
+    def avg(self) -> float:
         if self.n == 0:
             return -1
         return self.sum / self.n

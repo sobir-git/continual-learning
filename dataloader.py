@@ -44,7 +44,7 @@ class VisionDataset(object):
     def __init__(self, opt, class_order=None):
         self.kwargs = {
             'num_workers': opt.workers,
-            'batch_size': opt.batch_size,
+            'batch_size': opt.batchsize,
             'shuffle': True,
             'pin_memory': True}
         self.opt = opt

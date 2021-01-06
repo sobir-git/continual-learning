@@ -1,15 +1,13 @@
-import copy
 from typing import Tuple
 
 import numpy as np
-import sklearn
 import torchvision
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 
+from utils import np_a_in_b
 from dataloader import get_statistics, get_augment_transforms
 from exp2.config import Config
-from utils import np_a_in_b
 import exp2.tiny_data
 
 
@@ -51,7 +49,7 @@ class PartialDataset(Dataset):
     def get_labels(dataset) -> np.ndarray:
         """Only self labels"""
         if hasattr(dataset, 'labels'):
-            labels = dataset.labels
+            labels = dataset._labels
         else:
             labels = dataset.targets
 
@@ -114,7 +112,7 @@ class CIData:
         return self.data[phase - 1]
 
 
-def create_loader(config, dataset):
+def create_loader(config, dataset) -> DataLoader:
     return DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
 
 

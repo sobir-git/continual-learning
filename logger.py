@@ -1,4 +1,6 @@
 import collections
+from contextlib import nullcontext
+from typing import Sequence
 
 import torch
 import wandb
@@ -75,6 +77,21 @@ class PrefixCtx:
         self.logger.pop_pref()
 
 
+def _get_diagonal(confmatrix):
+    return np.diag(confmatrix)
+
+
+def get_accuracy(confmatrix=None, diag=None, predictions: Sequence[int] = None, labels: Sequence[int] = None) -> float:
+    if predictions is not None:
+        assert labels is not None
+        accuracy = np.equal(predictions, labels).mean()
+    else:
+        if diag is None:
+            diag = _get_diagonal(confmatrix)
+        accuracy = diag.sum() / confmatrix.sum()
+    return accuracy
+
+
 class Logger:
     _image_heatmaps = True
 
@@ -87,7 +104,11 @@ class Logger:
         self.pins = dict()
 
     def prefix(self, pref):
-        return PrefixCtx(self, pref)
+        """Makes everything log with the prefix. If `pref` is None, it won't have effect."""
+        if pref is None:
+            return nullcontext()
+        else:
+            return PrefixCtx(self, pref)
 
     def pin(self, key, value):
         """This will cause to log key-value pair on every subsequent logs"""
@@ -191,6 +212,7 @@ class Logger:
         By definition a confusion matrix C is such that C_ij is equal to the number of observations known to be in
         group i and predicted to be in group j.
         """
+        assert classnames is not None
         if self.confusion_matrix_format == 'image':
             # https://seaborn.pydata.org/tutorial/color_palettes.html
             self.log_heatmap(name, confmatrix, rows=classnames, columns=classnames, title=title, color='rocket',
@@ -199,8 +221,8 @@ class Logger:
             self.log({name: wandb_confusion_matrix(confmatrix, classnames, title=title)}, commit=commit)
 
     def _log_accuracy_one(self, confmatrix, classnames, log_recalls):
-        diag = np.diag(confmatrix)
-        accuracy = diag.sum() / confmatrix.sum()
+        diag = _get_diagonal(confmatrix)
+        accuracy = get_accuracy(confmatrix)
         self.log({'accuracy': accuracy})
         if log_recalls:
             recalls = diag / confmatrix.sum(1)
