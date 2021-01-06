@@ -40,10 +40,10 @@ class Controller(nn.Module):
     def forward(self, input):
         return self.net(input)
 
-    def get_predictions(self, outputs):
+    def get_predictions(self, outputs) -> np.ndarray:
         if outputs.size(0) == 0:
             return []
-        return torch.argmax(outputs, 1)
+        return torch.argmax(outputs, 1).cpu().numpy()
 
     def group_labels(self, labels: torch.Tensor):
         """Transform labels to their corresponding classifier ids in range 0...n-1 where n is the number of classifiers."""

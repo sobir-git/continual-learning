@@ -19,7 +19,7 @@ class ControllerPredictionReporter(PredictionReporter):
         ctrl_outputs = content.controller_state.outputs
         controller = content.get_controller()
         predictions = controller.get_predictions(ctrl_outputs)
-        return predictions.numpy()
+        return predictions
 
 
 class OutputsReporter(Concatenator):
