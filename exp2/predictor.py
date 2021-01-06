@@ -72,7 +72,8 @@ class FilteredController(Predictor):
                 filtered = list(range(len(classifiers)))
 
             # choose one with the highest controller score
-            chosen = torch.argmax(ctrl_outs[i, filtered]).item()
+            k = torch.argmax(ctrl_outs[i, filtered]).item()
+            chosen = filtered[k]
             prediction = clf_preds_closed[chosen][i]
             predictions.append(prediction)
         return np.array(predictions)
