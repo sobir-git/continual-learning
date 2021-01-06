@@ -5,6 +5,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from exp2.classifier import Classifier
+from exp2.config import Config
 from exp2.controller import Controller, create_controller
 from exp2.data import create_loader, PartialDataset
 from exp2.feature_extractor import create_models
@@ -12,7 +13,7 @@ from exp2.lr_scheduler import get_classifier_lr_scheduler, get_controller_lr_sch
 from exp2.model_state import ModelState, init_states
 from exp2.predictor import Predictor, ByCtrl, FilteredController
 from exp2.reporter import SourceReporter, ControllerReporter, create_test_reporter, ClassifierReporter
-from exp2.reporter_strings import CTRL_EPOCH, CLF_EPOCH, CTRL_LR
+from exp2.reporter_strings import CTRL_EPOCH, CLF_EPOCH, CTRL_LR, CLF_LR
 from exp2.utils import train_test_split
 from logger import Logger
 from utils import get_default_device, TrainingStopper
@@ -76,7 +77,7 @@ class Model:
     predictors: List[Predictor] = [ByCtrl(), FilteredController()]
     controller = None
 
-    def __init__(self, config, logger: Logger):
+    def __init__(self, config: Config, logger: Logger):
         self.logger = logger
         self.device = get_device()
         self.classifiers: List[Classifier] = []
@@ -97,7 +98,7 @@ class Model:
 
     def _create_classifier_optimizer(self, classifier):
         config = self.config
-        return optim.SGD(classifier.parameters(), lr=config.clf_lr, momentum=0.9, weight_decay=config.weight_decay)
+        return optim.SGD(classifier.parameters(), lr=config.clf.lr, momentum=0.9, weight_decay=config.weight_decay)
 
     def _create_classifier(self, classes) -> Classifier:
         """Create a new classifier and add it. Then return it."""
@@ -190,17 +191,15 @@ class Model:
 
     def train_a_new_controller(self, dataset):
         """Create a new controller and train it. It will replace the current controller with the new one."""
-        cfg = self.config
-        n_epochs = cfg.ctrl_epochs
-        epoch_tol = cfg.ctrl_epochs_tol
+        config = self.config
         self._create_new_controller()
         optimizer = self.controller.get_optimizer()
-        train_loader, val_loader = train_test_split(cfg, dataset, cfg.val_size)
-        stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = get_controller_lr_scheduler(cfg, optimizer)
+        train_loader, val_loader = train_test_split(config, dataset, config.val_size)
+        stopper = TrainingStopper(config.ctrl)
+        lr_scheduler = get_controller_lr_scheduler(config, optimizer)
 
         self._train_a_new_controller_start()
-        for epoch in range(1, n_epochs + 1):
+        for epoch in range(1, config.ctrl.epochs + 1):
             if stopper.do_stop():
                 break
             self._train_a_new_controller_epoch_start(epoch, lr_scheduler)
@@ -268,19 +267,25 @@ class Model:
             mstate = clf_state.parent
             reporter.update(mstate)
 
+    def _train_classifier_epoch_start(self, epoch, lr_scheduler):
+        self.logger.log({CLF_EPOCH: epoch})
+        lr = lr_scheduler.get_last_lr()[0]
+        self.logger.log({CLF_LR: lr})
+
+    def _train_classifier_epoch_end(self, epoch):
+        self.logger.commit()
+
     def _train_classifier(self, classifier, dataset, criterion, optimizer):
         """Train the classifier for a number of epochs."""
-        cfg = self.config
-        epoch_tol = cfg.clf_new_epochs_tol
-        n_epochs = cfg.clf_new_epochs
-        train_loader, val_loader = train_test_split(cfg, dataset, cfg.val_size)
-        stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = get_classifier_lr_scheduler(cfg, optimizer)
+        config = self.config
+        train_loader, val_loader = train_test_split(config, dataset, config.val_size)
+        stopper = TrainingStopper(config.clf)
+        lr_scheduler = get_classifier_lr_scheduler(config, optimizer)
 
-        for epoch in range(1, n_epochs + 1):
+        for epoch in range(1, config.clf.epochs + 1):
             if stopper.do_stop():
                 break
-            self.logger.log({CLF_EPOCH: epoch})
+            self._train_classifier_epoch_start(epoch, lr_scheduler)
             source_reporter = SourceReporter()
             ClassifierReporter(self.logger, source_reporter, classifier, 'train')
             self._train_classifier_epoch(classifier, train_loader, criterion, optimizer, epoch, source_reporter)
@@ -293,7 +298,7 @@ class Model:
                 loss = val_reporter.get_average_loss()
                 stopper.update(loss)
                 lr_scheduler.step(loss)
-            self.logger.commit()
+            self._train_classifier_epoch_end(epoch)
 
     def train_new_classifier(self, newset: PartialDataset, otherset: PartialDataset = None):
         """Train a new classifier on the dataset. Optionally given otherset that contains

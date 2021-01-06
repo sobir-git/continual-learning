@@ -280,7 +280,8 @@ def np_a_in_b(a, b) -> np.ndarray:
 
 
 class TrainingStopper:
-    def __init__(self, tol):
+    def __init__(self, config):
+        tol = config.epochs_tol
         self.tol = tol
         self.losses = []
 

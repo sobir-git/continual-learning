@@ -1,35 +1,40 @@
 import argparse
 
 
-class Config(argparse.Namespace):
-    def __init__(self, opt):
-        self.opt = opt
+class Config:
+    def __init__(self, opt: argparse.Namespace, delim='_'):
+        self.__opt = opt
+        self.__delim = delim
 
-#     def __getattr__(self, item):
-#         if item != 'opt':
-#             return getattr(self.opt, item)
-#
-#     logdir = None
-#     datadir = None
-#     n_phases = None
-#     n_classes_per_phase = None
-#     update_classifiers = None
-#     other = None
-#     dataset = None
-#     batch_size = None
-#     memory_size = None
-#     val_size = None
-#     class_order_seed = None
-#     download = None
-#     pretrained = None
-#     split_pos = None
-#     clone_head = None
-#     ctrl_pos = None
-#     ctrl_lr = None
-#     ctrl_epochs = None
-#     clf_lr = None
-#     clf_new_epochs = None
-#     clf_update_epochs = None
+    def __getattr__(self, item):
+        return getattr(self.__opt, item)
+
+    def _get_subkwargs(self, prefix):
+        """Get all attributes that start with prefix"""
+        preflen = len(prefix)
+        kwargs = dict()
+        for k, v in self.__opt.__dict__.items():
+            if k.startswith(prefix):
+                kwargs[k[preflen:]] = v
+        return kwargs
+
+    def _get_subconfig(self, prefix):
+        kwargs = self._get_subkwargs(prefix + self.__delim)
+        if not kwargs:
+            raise AttributeError(f'No such subconfig with {prefix}')
+        opt = argparse.Namespace(**kwargs)
+        return Config(opt, delim=self.__delim)
+
+    @property
+    def clf(self):
+        return self._get_subconfig('clf')
+
+    @property
+    def ctrl(self):
+        return self._get_subconfig('ctrl')
+
+    def __repr__(self):
+        return argparse.Namespace.__repr__(self.__opt)
 
 
 def parse_args(args=None) -> Config:
@@ -73,8 +78,11 @@ def parse_args(args=None) -> Config:
     parser.add_argument('--ctrl_epochs_tol', type=int, default=4,
                         help='Number of training epochs without improvement before stopping.')
     parser.add_argument('--clf_lr', type=float, default=0.001, help='Learning rate of classifiers')
-    parser.add_argument('--clf_new_epochs', type=int, default=50, help='Number of training epochs of a new classifier')
-    parser.add_argument('--clf_new_epochs_tol', type=int, default=4,
+    parser.add_argument('--clf_min_lr', type=float, default=1e-5, help='Learning rate of controller')
+    parser.add_argument('--clf_lr_scheduler', type=str, default='exp', choices=['exp'],
+                        help='Learning rate scheduler for classifier')
+    parser.add_argument('--clf_epochs', type=int, default=50, help='Number of training epochs of a new classifier')
+    parser.add_argument('--clf_epochs_tol', type=int, default=4,
                         help='Number of training epochs without improvement before stopping.')
     parser.add_argument('--clf_update_epochs', type=int, default=50,
                         help='Number of training epochs when updating classifiers')
@@ -90,12 +98,11 @@ def parse_args(args=None) -> Config:
     parser.add_argument('--lr_patience', type=int, default=3, help='Patience epochs before decaying lr')
     parser.add_argument('--lr_decay', type=float, default=0.25, help='Learning rate decay factor')
 
-
     parser.add_argument('--wandb_group', type=str, help='W&B group in experiments')
-
 
     if args is not None:
         opt = parser.parse_args(args)
     else:
         opt = parser.parse_args()
-    return opt
+    config = Config(opt)
+    return config
