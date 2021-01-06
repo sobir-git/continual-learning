@@ -1,6 +1,5 @@
 import collections
-from contextlib import nullcontext
-from typing import Sequence
+from typing import Sequence, List
 
 import torch
 import wandb
@@ -105,10 +104,7 @@ class Logger:
 
     def prefix(self, pref):
         """Makes everything log with the prefix. If `pref` is None, it won't have effect."""
-        if pref is None:
-            return nullcontext()
-        else:
-            return PrefixCtx(self, pref)
+        return PrefixCtx(self, pref)
 
     def pin(self, key, value):
         """This will cause to log key-value pair on every subsequent logs"""
@@ -189,8 +185,8 @@ class Logger:
         if commit:
             self.commit()
 
-    def log_heatmap(self, name, data, rows='auto', columns='auto', title=None, vmax=None, vmin=None, color="light:g",
-                    linewidths=2, rows_label: str = None, columns_label: str = None):
+    def log_heatmap(self, name, data, rows: List[str] = 'auto', columns: List[str] = 'auto', title=None, vmax=None,
+                    vmin=None, color="light:g", linewidths=2, rows_label: str = None, columns_label: str = None):
         if self._image_heatmaps:
             fig, ax = plt.subplots()
             ax.set_title(title)
