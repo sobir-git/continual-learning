@@ -61,8 +61,8 @@ class ControllerLabelGatherer(LabelGatherer):
 
 class ControllerAccuracyLogger(AccuracyLogger):
     def __init__(self, logger: Logger, label_gatherer: ControllerLabelGatherer,
-                 prediction_reporter: ControllerPredictionReporter):
-        super().__init__(name=CTRL_ACC, logger=logger, label_gatherer=label_gatherer,
+                 prediction_reporter: ControllerPredictionReporter, name: str):
+        super().__init__(name=name, logger=logger, label_gatherer=label_gatherer,
                          prediction_reporter=prediction_reporter)
         self.label_gatherer = label_gatherer
         self.prediction_reporter = prediction_reporter
@@ -262,7 +262,7 @@ class ControllerReporter:
         prediction_reporter = ControllerPredictionReporter(source)
         label_gatherer = ControllerLabelGatherer(source)
         ControllerLossLogger(source, logger, name=CTRL_VAL_LOSS)
-        ControllerAccuracyLogger(logger, label_gatherer, prediction_reporter)
+        ControllerAccuracyLogger(logger, label_gatherer, prediction_reporter, CTRL_VAL_ACC)
         return source
 
 
@@ -293,7 +293,7 @@ def create_test_reporter(logger: Logger, source, classifiers: List[Classifier], 
     ctrl_label_gatherer = ControllerLabelGatherer(source)
     ctrl_confusion_reporter = ConfusionMatrixReporter(ctrl_prediction_reporter, ctrl_label_gatherer)
     ControllerConfusionMatrixLogger(logger, ctrl_confusion_reporter, clf_names)
-    ControllerAccuracyLogger(logger, ctrl_label_gatherer, ctrl_prediction_reporter)
+    ControllerAccuracyLogger(logger, ctrl_label_gatherer, ctrl_prediction_reporter, CTRL_ACC)
 
     clf_predictors = defaultdict(list)
 

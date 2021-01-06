@@ -4,6 +4,7 @@ CTRL_VAL_LOSS = 'ctrl/val_loss'
 CTRL_CONF_MTX_TITLE = 'Confusion(Controller)'
 CTRL_CONF_MTX = 'ctrl.conf_mtx'
 CTRL_ACC = 'ctrl.accuracy'
+CTRL_VAL_ACC = 'ctrl.val_accuracy'
 CLF_EPOCH = 'clf/epoch'
 CLF_CONF_MTX_TITLE = "Confusion (classifier {idx})"
 FINAL_ACC = "final/{name}.accuracy"

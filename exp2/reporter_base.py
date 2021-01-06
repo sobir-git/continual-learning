@@ -294,7 +294,7 @@ class PredictionReporter(PredictionReporterBase, Concatenator):
     """Obtains predictions at each update and reports them at the end."""
 
     @abstractmethod
-    def obtain_predictions(self, content):
+    def obtain_predictions(self, content):  # TODO: ctrl.accuracy is too low: https://wandb.ai/sobir/exp2/runs/12hj00w5
         """Obtain prediction from given update content. Called at each update."""
         ...
 
