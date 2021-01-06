@@ -1,4 +1,5 @@
 CTRL_EPOCH = 'ctrl/epoch'
+CTRL_LR = 'ctrl/lr'
 CTRL_TRAIN_LOSS = 'ctrl/tr_loss'
 CTRL_VAL_LOSS = 'ctrl/val_loss'
 CTRL_CONF_MTX_TITLE = 'Confusion(Controller)'

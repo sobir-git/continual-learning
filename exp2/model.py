@@ -1,4 +1,4 @@
-from typing import List, Union, Iterable
+from typing import List, Iterable
 
 import torch
 from torch import nn, optim
@@ -8,10 +8,11 @@ from exp2.classifier import Classifier
 from exp2.controller import Controller, create_controller
 from exp2.data import create_loader, PartialDataset
 from exp2.feature_extractor import create_models
-from exp2.model_state import ControllerState, ClassifierState, ModelState, init_states
+from exp2.lr_scheduler import get_classifier_lr_scheduler, get_controller_lr_scheduler
+from exp2.model_state import ModelState, init_states
 from exp2.predictor import Predictor, ByCtrl, FilteredController
 from exp2.reporter import SourceReporter, ControllerReporter, create_test_reporter, ClassifierReporter
-from exp2.reporter_strings import CTRL_EPOCH, CLF_EPOCH
+from exp2.reporter_strings import CTRL_EPOCH, CLF_EPOCH, CTRL_LR
 from exp2.utils import train_test_split
 from logger import Logger
 from utils import get_default_device, TrainingStopper
@@ -61,11 +62,6 @@ def get_class_weights(config, newset, otherset=None):
     # normalize weights
     weight = weight / weight.sum()
     return weight
-
-
-def get_lr_scheduler(cfg, optimizer):
-    return optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=cfg.lr_decay, patience=cfg.lr_patience,
-                                                verbose=True, min_lr=0.00001)
 
 
 def get_classification_criterion(config, newset, otherset, device):
@@ -181,8 +177,10 @@ class Model:
     def _train_a_new_controller_start(self):
         pass
 
-    def _train_a_new_controller_epoch_start(self, epoch):
+    def _train_a_new_controller_epoch_start(self, epoch, lr_scheduler):
         self.logger.log({CTRL_EPOCH: epoch})
+        lr = lr_scheduler.get_last_lr()
+        self.logger.log({CTRL_LR: lr})
 
     def _train_a_new_controller_epoch_end(self, epoch):
         self.logger.commit()
@@ -199,13 +197,13 @@ class Model:
         optimizer = self.controller.get_optimizer()
         train_loader, val_loader = train_test_split(cfg, dataset, cfg.val_size)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = get_lr_scheduler(cfg, optimizer)
+        lr_scheduler = get_controller_lr_scheduler(cfg, optimizer)
 
         self._train_a_new_controller_start()
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():
                 break
-            self._train_a_new_controller_epoch_start(epoch)
+            self._train_a_new_controller_epoch_start(epoch, lr_scheduler)
             source_reporter = SourceReporter()
             train_reporter = ControllerReporter(self.logger, source_reporter, self.controller, 'train')
             self._train_controller_epoch(train_loader, optimizer, epoch, source_reporter)
@@ -277,7 +275,7 @@ class Model:
         n_epochs = cfg.clf_new_epochs
         train_loader, val_loader = train_test_split(cfg, dataset, cfg.val_size)
         stopper = TrainingStopper(tol=epoch_tol)
-        lr_scheduler = get_lr_scheduler(cfg, optimizer)
+        lr_scheduler = get_classifier_lr_scheduler(cfg, optimizer)
 
         for epoch in range(1, n_epochs + 1):
             if stopper.do_stop():

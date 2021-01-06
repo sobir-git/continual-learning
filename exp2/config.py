@@ -60,15 +60,22 @@ def parse_args(args=None) -> Config:
                         help='Whether to clone from the pretrained model when initializing classifiers')
     parser.add_argument('--ctrl_pos', type=str, required=True, choices=['before', 'after'],
                         help='The position of the controller. before or after the classifiers')
-    parser.add_argument('--ctrl_hidden_layer_scale', type=float, default=0., help='Set the size of the hidden layer as output size scaled by this number. If 0, no hidden layers.')
-    parser.add_argument('--ctrl_hidden_activation', type=str, default='Sigmoid', help='Activation function of hidden layer in controller.')
+    parser.add_argument('--ctrl_hidden_layer_scale', type=float, default=0.,
+                        help='Set the size of the hidden layer as output size scaled by this number. If 0, no hidden layers.')
+    parser.add_argument('--ctrl_hidden_activation', type=str, default='Sigmoid',
+                        help='Activation function of hidden layer in controller.')
 
     parser.add_argument('--ctrl_lr', type=float, default=0.001, help='Learning rate of controller')
+    parser.add_argument('--ctrl_lr_scheduler', type=str, default='exp', choices=['exp'],
+                        help='Learning rate scheduler for controller')
+    parser.add_argument('--ctrl_min_lr', type=float, default=1e-5, help='Learning rate of controller')
     parser.add_argument('--ctrl_epochs', type=int, default=20, help='Number of training epochs of controller')
-    parser.add_argument('--ctrl_epochs_tol', type=int, default=4, help='Number of training epochs without improvement before stopping.')
+    parser.add_argument('--ctrl_epochs_tol', type=int, default=4,
+                        help='Number of training epochs without improvement before stopping.')
     parser.add_argument('--clf_lr', type=float, default=0.001, help='Learning rate of classifiers')
     parser.add_argument('--clf_new_epochs', type=int, default=50, help='Number of training epochs of a new classifier')
-    parser.add_argument('--clf_new_epochs_tol', type=int, default=4, help='Number of training epochs without improvement before stopping.')
+    parser.add_argument('--clf_new_epochs_tol', type=int, default=4,
+                        help='Number of training epochs without improvement before stopping.')
     parser.add_argument('--clf_update_epochs', type=int, default=50,
                         help='Number of training epochs when updating classifiers')
     parser.add_argument('--clf_update_epochs_tol', type=int, default=4,
