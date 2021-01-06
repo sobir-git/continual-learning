@@ -5,22 +5,43 @@ from torch.optim import lr_scheduler as sch
 from exp2.config import Config
 
 
+def compute_gamma(min, max, times):
+    """Solve for max * x^times = min"""
+    log_gamma = math.log(min / max) * (1 / times)
+    gamma = math.exp(log_gamma)
+    return gamma
+
+
 class ExponentialLR(sch.ExponentialLR):
     def __init__(self, cfg, optimizer):
-        log_gamma = math.log(cfg.min_lr / cfg.lr) * (1 / cfg.epochs)
-        gamma = math.exp(log_gamma)
+        gamma = compute_gamma(cfg.min_lr, cfg.lr, cfg.epochs - 1)
         super(ExponentialLR, self).__init__(optimizer, gamma)
 
     def step(self, *args):
         super(ExponentialLR, self).step()
 
 
-def _get_lr_scheduler(config, optimizer):
-    if config.lr_scheduler == 'exp':
-        return ExponentialLR(config, optimizer)
+class StepLR(sch.StepLR):
+    n_parts = 4
 
-    return sch.ReduceLROnPlateau(optimizer, 'min', factor=config.lr_decay, patience=config.lr_patience,
-                                 verbose=True, min_lr=0.00001)
+    def __init__(self, config, optimizer):
+        step_size = config.epochs // self.n_parts
+        gamma = compute_gamma(config.min_lr, config.lr, self.n_parts - 1)
+        super(StepLR, self).__init__(optimizer, step_size, gamma)
+
+    def step(self, *args):
+        super().step()
+
+
+mapping = {'exp': ExponentialLR,
+           'step': StepLR}
+
+
+def _get_lr_scheduler(config, optimizer):
+    return mapping[config.lr_scheduler](config, optimizer)
+    #
+    # return sch.ReduceLROnPlateau(optimizer, 'min', factor=config.lr_decay, patience=config.lr_patience,
+    #                              verbose=True, min_lr=0.00001)
 
 
 def get_controller_lr_scheduler(config: Config, optimizer):

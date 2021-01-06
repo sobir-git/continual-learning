@@ -37,7 +37,11 @@ class Config:
         return argparse.Namespace.__repr__(self.__opt)
 
 
+
 def parse_args(args=None) -> Config:
+    lr_choices = ['exp', 'step']
+    default_lr_scheduler = 'step'
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--logdir', type=str, default='./logs/', help='Directory where all logs are stored')
     parser.add_argument('--datadir', type=str, default='../data/', help='Directory where all datasets are stored')
@@ -71,7 +75,7 @@ def parse_args(args=None) -> Config:
                         help='Activation function of hidden layer in controller.')
 
     parser.add_argument('--ctrl_lr', type=float, default=0.001, help='Learning rate of controller')
-    parser.add_argument('--ctrl_lr_scheduler', type=str, default='exp', choices=['exp'],
+    parser.add_argument('--ctrl_lr_scheduler', type=str, default=default_lr_scheduler, choices=lr_choices,
                         help='Learning rate scheduler for controller')
     parser.add_argument('--ctrl_min_lr', type=float, default=1e-5, help='Learning rate of controller')
     parser.add_argument('--ctrl_epochs', type=int, default=20, help='Number of training epochs of controller')
@@ -79,7 +83,7 @@ def parse_args(args=None) -> Config:
                         help='Number of training epochs without improvement before stopping.')
     parser.add_argument('--clf_lr', type=float, default=0.001, help='Learning rate of classifiers')
     parser.add_argument('--clf_min_lr', type=float, default=1e-5, help='Learning rate of controller')
-    parser.add_argument('--clf_lr_scheduler', type=str, default='exp', choices=['exp'],
+    parser.add_argument('--clf_lr_scheduler', type=str, default=default_lr_scheduler, choices=lr_choices,
                         help='Learning rate scheduler for classifier')
     parser.add_argument('--clf_epochs', type=int, default=50, help='Number of training epochs of a new classifier')
     parser.add_argument('--clf_epochs_tol', type=int, default=4,
