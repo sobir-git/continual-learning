@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Callable
 
 import numpy as np
 import torchvision
@@ -13,17 +13,32 @@ console_logger = get_console_logger(__name__)
 
 
 class PartialDataset(Dataset):
-    def __init__(self, source: Dataset, ids: np.ndarray, transform, classes: List[int], test_transform=None):
-        assert transform is not None
-        self.transform = transform
+    _train: bool
+    _transform: Callable
+
+    def __init__(self, source: Dataset, ids: np.ndarray, train: bool, train_transform: Callable,
+                 test_transform: Callable, classes: List[int]):
+        assert train_transform is not None
+        self.train_transform = train_transform
         self.test_transform = test_transform
+        # TODO: loose check that train transform no less than the test one
         self.source = source
         self._classes = classes
         self.ids = ids if isinstance(ids, np.ndarray) else np.array(ids, dtype=int)
+        self._set_train(train)
 
         # get corresponding labels
         self.labels = self.get_labels(self.source)[ids] if len(ids) > 0 \
             else np.array([])
+
+    def _set_train(self, train):
+        """Set the train mode."""
+        assert type(train) is bool
+        self._train = train
+        if train:
+            self._transform = self.train_transform
+        else:
+            self._transform = self.test_transform
 
     @property
     def classes(self):
@@ -34,7 +49,7 @@ class PartialDataset(Dataset):
         """From self and otherset(if exists)."""
         id = self.ids[item]
         input, label = self.source[id]
-        input = self.transform(input)
+        input = self._transform(input)
         return input, label, id
 
     def __len__(self):
@@ -42,10 +57,13 @@ class PartialDataset(Dataset):
         return len(self.ids)
 
     @classmethod
-    def from_classes(cls, source, transform, classes, **kwargs):
+    def from_classes(cls, source, train: bool, train_transform, test_transform, classes):
+        """Create dataset from given classes. The samples are taken from source dataset.
+        """
         labels = cls.get_labels(source)
         ids = np_a_in_b(labels, classes)
-        return cls(source, ids, transform, classes=classes, **kwargs)
+        return cls(source, ids, train=train, train_transform=train_transform, test_transform=test_transform,
+                   classes=classes)
 
     @staticmethod
     def get_labels(dataset) -> np.ndarray:
@@ -60,23 +78,32 @@ class PartialDataset(Dataset):
             labels = np.array(labels)
         return labels
 
-    def split(self, train_size=None, test_size=None):
-        """Split into train and test set. If it has otherset, it will also be split in the same ratio.
-        Also set val augmentation set to test ones.
+    def split(self, test_size=None, train_size=None):
+        """Split into train and test set. Also set test transforms for the testset.
+        if test_size == 0, then testset will still be a dataset but empty.
         """
+        if test_size is not None: assert test_size <= 0.5
+        if train_size is not None: assert train_size >= 0.5
+
+        # handle two special cases, finally split
         if len(self.ids) == 0:
             console_logger.warning('Trying to split empty dataset. Will split into two empties anyways.')
             train_ids, test_ids = [], []
+        elif test_size == 0:
+            train_ids, test_ids = self.ids, []
         else:
             train_ids, test_ids = \
                 train_test_split(self.ids, train_size=train_size, test_size=test_size, stratify=self.labels)
-        self_train = PartialDataset(self.source, train_ids, self.transform, self._classes)
-        self_test = PartialDataset(self.source, test_ids, self.test_transform, self._classes)
+        self_train = PartialDataset(self.source, train_ids, True, self.train_transform, self.test_transform,
+                                    self._classes)
+        self_test = PartialDataset(self.source, test_ids, True, self.test_transform, self.test_transform, self._classes)
         return self_train, self_test
 
     def mix(self, otherset):
         """Create a dataset of mixture of samples. Other properties are inherited from self.
         Warning: it assumes that both datasets have different sets of samples.
+        Train and test transforms of otherset will be ignored.
+        The resulting dataset will have train/test transforms and train mode as self.
         """
         # create list of classes from both dataset, the list starts with classes of self in the same order
         classes = list(self.classes)
@@ -85,9 +112,13 @@ class PartialDataset(Dataset):
                 classes.append(cls)
         source = self.source
         ids = np.concatenate([self.ids, otherset.ids])
-        transform = self.transform
         test_transform = self.test_transform
-        return self.__class__(source, ids, transform, classes=classes, test_transform=test_transform)
+        train = self._train
+        return self.__class__(source, ids, train, train_transform=self.train_transform,
+                              test_transform=test_transform, classes=classes)
+
+    def is_train(self):
+        return self._train
 
 
 class CIData:
@@ -105,11 +136,13 @@ class CIData:
         cumul_classes = []
         for phase in range(n_phases):
             classes = self.class_order[phase * n_classes_per_phase:(phase + 1) * n_classes_per_phase]
-            train = PartialDataset.from_classes(train_source, train_transform, classes,
-                                                test_transform=test_transform)
-            test = PartialDataset.from_classes(test_source, test_transform, classes)
+            train = PartialDataset.from_classes(train_source, train=True, train_transform=train_transform,
+                                                test_transform=test_transform, classes=classes)
+            test = PartialDataset.from_classes(test_source, train=False, train_transform=train_transform,
+                                               test_transform=test_transform, classes=classes)
             cumul_classes.extend(classes)
-            cumul_test = PartialDataset.from_classes(test_source, test_transform, cumul_classes)
+            cumul_test = PartialDataset.from_classes(test_source, train=False, train_transform=train_transform,
+                                                     test_transform=test_transform, classes=cumul_classes)
             self.data.append((train, test, cumul_test))
 
     def get_phase_data(self, phase) -> Tuple[PartialDataset, PartialDataset, PartialDataset]:
@@ -118,8 +151,11 @@ class CIData:
         return self.data[phase - 1]
 
 
-def create_loader(config, dataset) -> DataLoader:
-    return DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
+def create_loader(config, dataset: PartialDataset) -> DataLoader:
+    shuffle = True
+    if len(dataset) == 0:  # in this case we don't shuffle because it causes an error in Dataloader code
+        shuffle = False
+    return DataLoader(dataset, batch_size=config.batch_size, shuffle=shuffle)
 
 
 def _get_dataset(config, train: bool, transforms):

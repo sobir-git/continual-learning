@@ -31,9 +31,16 @@ class Memory:
             ids.extend(self._ids[cls])
         return np.array(ids)
 
-    def get_dataset(self):
+    def get_dataset(self, train: bool):
+        """Create dataset of existing samples in memory.
+
+        Args:
+            train: whether the resulting dataset should have train transforms
+        """
         ids = self.get_all_ids()
-        return PartialDataset(self.source, ids, self.train_transform, test_transform=self.test_transform,
+        return PartialDataset(self.source, ids, train=train,
+                              train_transform=self.train_transform,
+                              test_transform=self.test_transform,
                               classes=self.get_classes())
 
     def update(self, ids: np.ndarray, new_classes: List[int], scores: np.ndarray = None):

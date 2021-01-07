@@ -19,31 +19,27 @@ def run(config):
     model = Model(config, logger=logger)
     logger.log({'class_order': data.class_order})
 
+    # here comes the training algorithm
     for phase in range(1, config.n_phases + 1):
-        model.phase_start(phase)
         console_logger.info(f'== Starting phase {phase} ==')
         logger.pin('phase', phase)
+        model.phase_start(phase)
 
         # get the new samples
         trainset, testset, cumul_testset = data.get_phase_data(phase)
 
         # train a new classifier on new samples
         console_logger.info('Training a new classifier')
-        otherset = clf_memory.get_dataset() if config.other else None
         model.train_new_classifier(trainset, ctrl_memory, clf_memory)
 
         # add the new training samples to memory
         console_logger.info('Updating memory')
         update_memories(ctrl_memory, clf_memory, trainset)
-        #
-        # # update previous classifiers
-        # if config.update_classifiers:
-        #     console_logger.info('Updating previous classifiers')
-        #     model.update_prev_classifiers(memory.get_dataset())
 
         # train a new controller
         console_logger.info('Training a new controller')
-        model.train_a_new_controller(ctrl_memory.get_dataset())
+        dataset = ctrl_memory.get_dataset(train=True)
+        model.train_a_new_controller(dataset)
 
         # test the model
         console_logger.info('Testing the model')

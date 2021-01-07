@@ -5,15 +5,15 @@ other: true
 memory_size: 500
 clf:
   epochs: 50
-  epochs_tol: 4
+  epochs_tol: 20
   lr: 0.01
   lr_scheduler: poly1
   min_lr: 1.0e-05
   update_epochs: 50
   update_epochs_tol: 4
 ctrl:
-  epochs: 20
-  epochs_tol: 4
+  epochs: 200
+  epochs_tol: 20
   hidden_activation: Sigmoid
   hidden_layer_scale: 0.0
   lr: 0.01

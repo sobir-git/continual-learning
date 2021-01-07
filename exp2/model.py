@@ -11,10 +11,8 @@ from exp2.feature_extractor import create_models
 from exp2.lr_scheduler import get_classifier_lr_scheduler, get_controller_lr_scheduler
 from exp2.memory import Memory
 from exp2.model_state import ModelState, init_states
-from exp2.predictor import Predictor, ByCtrl, FilteredController
 from exp2.reporter import SourceReporter, ControllerReporter, create_test_reporter, ClassifierReporter
 from exp2.reporter_strings import CTRL_EPOCH, CLF_EPOCH, CTRL_LR, CLF_LR
-from exp2.utils import train_test_split
 from logger import Logger
 from utils import get_default_device, TrainingStopper
 
@@ -74,8 +72,8 @@ def get_classification_criterion(config, newset, otherset, device):
 
 
 class Model:
-    predictors: List[Predictor] = [ByCtrl(), FilteredController()]
-    controller = None
+    controller: Controller = None
+    phase: int
 
     def __init__(self, config, logger: Logger):
         self.logger = logger
@@ -189,12 +187,14 @@ class Model:
     def _train_a_new_controller_end(self):
         pass
 
-    def train_a_new_controller(self, dataset):
+    def train_a_new_controller(self, dataset: PartialDataset):
         """Create a new controller and train it. It will replace the current controller with the new one."""
         config = self.config
         self._create_new_controller()
-        optimizer = self.controller.get_optimizer()
-        train_loader, val_loader = train_test_split(config, dataset, config.val_size)
+        optimizer = self.controller.get_optimizer()  # TODO: replace next line
+        trainset, valset = dataset.split(test_size=config.val_size)
+        train_loader = create_loader(config, trainset)
+        val_loader = create_loader(config, valset)
         stopper = TrainingStopper(config.ctrl)
         lr_scheduler = get_controller_lr_scheduler(config, optimizer)
 
@@ -207,14 +207,16 @@ class Model:
             train_reporter = ControllerReporter(self.logger, source_reporter, self.controller, 'train')
             self._train_controller_epoch(train_loader, optimizer, epoch, source_reporter)
             source_reporter.end()
-            if val_loader:
+            if len(valset) > 0:
                 source_reporter = SourceReporter()
                 validation_reporter = ControllerReporter(self.logger, source_reporter, self.controller, 'validation')
                 self._val_controller(val_loader, epoch, source_reporter)
                 source_reporter.end()
                 loss = validation_reporter.get_average_loss()
-                lr_scheduler.step(loss)
-                stopper.update(loss)
+            else:
+                loss = train_reporter.get_average_loss()
+            lr_scheduler.step(loss)
+            stopper.update(loss)
             self._train_a_new_controller_epoch_end(epoch)
         self._train_a_new_controller_end()
 
@@ -276,7 +278,9 @@ class Model:
         self.logger.commit()
 
     def _train_classifier(self, classifier, train_loader, val_loader, criterion, optimizer):
-        """Train the classifier for a number of epochs."""
+        """Train the classifier for a number of epochs.
+        If val_loader is None, do not validate.
+        """
         config = self.config
         stopper = TrainingStopper(config.clf)
         lr_scheduler = get_classifier_lr_scheduler(config, optimizer)
@@ -286,17 +290,21 @@ class Model:
                 break
             self._train_classifier_epoch_start(epoch, lr_scheduler)
             source_reporter = SourceReporter()
-            ClassifierReporter(self.logger, source_reporter, classifier, 'train')
+            train_reporter = ClassifierReporter(self.logger, source_reporter, classifier, 'train')
             self._train_classifier_epoch(classifier, train_loader, criterion, optimizer, epoch, source_reporter)
             source_reporter.end()
-            if val_loader is not None:
+
+            # validate if validation dataset is not empty
+            if len(val_loader.dataset) > 0:
                 source_reporter = SourceReporter()
                 val_reporter = ClassifierReporter(self.logger, source_reporter, classifier, 'validation')
                 self._val_classifier(classifier, val_loader, criterion, source_reporter)
                 source_reporter.end()
                 loss = val_reporter.get_average_loss()
-                stopper.update(loss)
+            else:
+                loss = train_reporter.get_average_loss()
                 lr_scheduler.step(loss)
+                stopper.update(loss)
             self._train_classifier_epoch_end(epoch)
 
     def train_new_classifier(self, newset: PartialDataset, ctrl_memory: Memory, clf_memory: Memory):
@@ -304,13 +312,15 @@ class Model:
         examples from unknown classes.
 
         Algorithm:
-            1. if training with other:
-                newset_tr, newset_val = slit(newset)
-                if shared memory (ctrl_memory is clf_memory):
+            if training with other:
+                newset_tr, newset_val = split(newset)
+                if shared memory (ctrl_memory is clf_memory):  # -> split the shared memory
                     otherset_tr, otherset_val = split(ctrl_memory)  # (or clf_memory, doesn't matter)
-                else:
+                else:  # use its own memory on full and validate on ctrl memory
                     otherset_tr = clf_memory
                     otherset_val = ctrl_memory
+            else:  # no other
+                split newset and just train with newset, (memory storages only contain past "other" data)
 
             2. train with newset_tr + otherset_tr
                 and validate with newset_val + otherset_val
@@ -322,18 +332,22 @@ class Model:
         """
         new_classes = newset.classes
         val_size = self.config.val_size
-        # split new dataset into train and validation
-        newset_tr, newset_val = newset.split(val_size)
 
-        # make up otherset, dataset consisting of "other" categories
+        def get_othersets(clf_memory, ctrl_memory, val_size):
+            if ctrl_memory is clf_memory:  # TODO: imho can still overfit if classifiers update
+                otherset_tr, otherset_val = clf_memory.get_dataset(train=True).split(test_size=val_size)
+            else:  # if separate memories, ctrl_memory becomes validation set
+                otherset_tr = clf_memory.get_dataset(train=True)
+                otherset_val = ctrl_memory.get_dataset(train=False)
+            return otherset_tr, otherset_val
+
+        # split new dataset into train and validation
+        newset_tr, newset_val = newset.split(test_size=val_size)
+
+        # make up otherset, a dataset consisting of "other" categories
         otherset_tr, otherset_val = None, None
         if self.config.other:
-            # if share same memory:
-            if ctrl_memory is clf_memory:  # TODO: imho can still overfit if classifiers update
-                otherset_tr, otherset_val = clf_memory.get_dataset().split(test_size=val_size)
-            else:  # if separate memories, ctrl_memory becomes validation set
-                otherset_tr = clf_memory.get_dataset()
-                otherset_val = ctrl_memory.get_dataset()
+            otherset_tr, otherset_val = get_othersets(clf_memory, ctrl_memory, val_size)
 
         # create the new classifier, prepared for new classes
         classifier = self._create_classifier(new_classes)
@@ -349,7 +363,7 @@ class Model:
         train_loader = create_loader(self.config, trainset)
 
         # create final validation set, combination of new and other categories
-        valset = newset_tr.mix(otherset_val) if otherset_val else newset_val
+        valset = newset_val.mix(otherset_val) if otherset_val else newset_val
         val_loader = create_loader(self.config, valset)
 
         # start training

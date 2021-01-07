@@ -4,5 +4,4 @@ n_phases: 3
 n_classes_per_phase: 3
 ctrl_epochs: 10
 clf_epochs: 20
-wandb_group: mylaptop
 class_order_seed: 1

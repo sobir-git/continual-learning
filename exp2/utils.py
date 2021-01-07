@@ -68,19 +68,6 @@ def evaluating(net: nn.Module):
         net.train(istrain)
 
 
-def train_test_split(config, dataset: PartialDataset, val_size):
-    """Split into train and test sets, and return dataloaders. If config.val_size is 0, validation
-    dataset will be None."""
-    if val_size > 0:
-        trainset, valset = dataset.split(test_size=val_size)
-        val_loader = create_loader(config, valset)
-    else:
-        trainset, valset = dataset, None
-        val_loader = None
-    train_loader = create_loader(config, trainset)
-    return train_loader, val_loader
-
-
 def get_number(v):
     """Try to get the number from v, whether itself or something wrapped inside it.
     If not a number raises TypeError
