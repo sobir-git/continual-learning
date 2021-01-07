@@ -204,12 +204,13 @@ class Model:
                 break
             self._train_a_new_controller_epoch_start(epoch, lr_scheduler)
             source_reporter = SourceReporter()
-            train_reporter = ControllerReporter(self.logger, source_reporter, self.controller, 'train')
+            train_reporter = ControllerReporter(self.config, self.logger, source_reporter, self.controller, 'train')
             self._train_controller_epoch(train_loader, optimizer, epoch, source_reporter)
             source_reporter.end()
             if len(valset) > 0:
                 source_reporter = SourceReporter()
-                validation_reporter = ControllerReporter(self.logger, source_reporter, self.controller, 'validation')
+                validation_reporter = ControllerReporter(self.config, self.logger, source_reporter, self.controller,
+                                                         'validation')
                 self._val_controller(val_loader, epoch, source_reporter)
                 source_reporter.end()
                 loss = validation_reporter.get_average_loss()
@@ -236,7 +237,7 @@ class Model:
         """
         self.set_train(False)
         source_reporter = SourceReporter()
-        create_test_reporter(self.logger, source_reporter, self.classifiers, self.controller, self.classes)
+        create_test_reporter(self.config, self.logger, source_reporter, self.classifiers, self.controller, self.classes)
         loader = create_loader(self.config, dataset)
 
         for mstate in self._feed_everything(loader):
@@ -290,14 +291,14 @@ class Model:
                 break
             self._train_classifier_epoch_start(epoch, lr_scheduler)
             source_reporter = SourceReporter()
-            train_reporter = ClassifierReporter(self.logger, source_reporter, classifier, 'train')
+            train_reporter = ClassifierReporter(self.config, self.logger, source_reporter, classifier, 'train')
             self._train_classifier_epoch(classifier, train_loader, criterion, optimizer, epoch, source_reporter)
             source_reporter.end()
 
             # validate if validation dataset is not empty
             if len(val_loader.dataset) > 0:
                 source_reporter = SourceReporter()
-                val_reporter = ClassifierReporter(self.logger, source_reporter, classifier, 'validation')
+                val_reporter = ClassifierReporter(self.config, self.logger, source_reporter, classifier, 'validation')
                 self._val_classifier(classifier, val_loader, criterion, source_reporter)
                 source_reporter.end()
                 loss = val_reporter.get_average_loss()

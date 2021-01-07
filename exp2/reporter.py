@@ -10,6 +10,25 @@ from exp2.reporter_base import *
 from logger import Logger, get_accuracy
 
 
+class IdsLogger(LoggerBase):
+
+    def __init__(self, ids_gatherer: IdsGatherer, logger: Logger, output_file: str, mode='w'):
+        super().__init__(logger, parents=[ids_gatherer])
+        self.ids_gatherer = ids_gatherer
+        self.output_file = output_file
+        self.mode = mode
+
+    def compute_final_content(self):
+        pass
+
+    def log_at_end(self):
+        ids = self.ids_gatherer.get_final_content()
+        ids = ids.tolist()
+        with open(self.output_file, self.mode) as f:
+            f.write(str(ids))
+            f.write('\n')
+
+
 class ControllerPredictionReporter(PredictionReporter):
     def __init__(self, source: SourceReporter):
         parents = [source]
@@ -200,8 +219,9 @@ class FinalPredictionReporter(PredictionReporterBase, EndableReporter):
 
 
 class ClassifierReporter:
-    def __init__(self, logger, source, classifier, mode: str):
+    def __init__(self, config, logger, source: SourceReporter, classifier: Classifier, mode: str):
         self.source = source
+        self.config = config
         assert mode in ['train', 'validation']
         if mode == 'train':
             self._create_classifier_train_reporter(logger, source, classifier)
@@ -216,26 +236,35 @@ class ClassifierReporter:
         predicate = lambda x: x.is_open == is_open and x.is_exclusive == is_exclusive
         nodes = self.source.find_descendant_nodes(ClassifierAccuracyLogger)
         accuracy_logger = next(filter(predicate, nodes))
-        return accuracy_logger.get_accuracy()
+        return accuracy_logger.get_value()
 
-    @staticmethod
-    def _create_classifier_train_reporter(logger: Logger, source: SourceReporter, classifier: Classifier):
+    def _create_classifier_train_reporter(self, logger: Logger, source: SourceReporter, classifier: Classifier):
         """Report loss."""
         loss_name = CLF_LOSS.format(idx=classifier.idx, is_train=True)
         ClassifierLossLogger(classifier, source, loss_name, logger)
+
+        # log ids
+        ids_gatherer = IdsGatherer(source)
+        output_file = self.config.logdir + '/' + 'clf_train_ids.txt'
+        IdsLogger(ids_gatherer, logger, output_file, mode='a')
         return source
 
-    @staticmethod
-    def _create_classifier_validation_reporter(logger: Logger, source: SourceReporter, classifier: Classifier):
+    def _create_classifier_validation_reporter(self, logger: Logger, source: SourceReporter, classifier: Classifier):
         """Report loss, accuracy"""
         name = CLF_LOSS.format(idx=classifier.idx, is_validation=True)
         ClassifierLossLogger(classifier, source, name, logger)
+
+        # log ids
+        ids_gatherer = IdsGatherer(source)
+        output_file = self.config.logdir + '/' + 'clf_val_ids.txt'
+        IdsLogger(ids_gatherer, logger, output_file, mode='a')
         return source
 
 
 class ControllerReporter:
-    def __init__(self, logger, source, controller, mode: str):
+    def __init__(self, config, logger: Logger, source: SourceReporter, controller: Controller, mode: str):
         self.source = source
+        self.config = config
         assert mode in ['train', 'validation']
         if mode == 'train':
             self._create_controller_train_reporter(logger, source)
@@ -248,25 +277,29 @@ class ControllerReporter:
 
     def get_accuracy(self):
         accuracy_logger = self.source.find_descendant_node(ControllerAccuracyLogger)
-        return accuracy_logger.get_accuracy()
+        return accuracy_logger.get_value()
 
-    @staticmethod
-    def _create_controller_train_reporter(logger: Logger, source: SourceReporter):
+    def _create_controller_train_reporter(self, logger: Logger, source: SourceReporter):
         """Report loss."""
         ControllerLossLogger(source, logger, name=CTRL_TRAIN_LOSS)
+        ids_gatherer = IdsGatherer(source)
+        output_file = self.config.logdir + '/' + 'ctrl_train_ids.txt'
+        IdsLogger(ids_gatherer, logger, output_file, mode='a')
         return source
 
-    @staticmethod
-    def _create_controller_validation_reporter(logger: Logger, source: SourceReporter, controller: Controller):
+    def _create_controller_validation_reporter(self, logger: Logger, source: SourceReporter, controller: Controller):
         """Report loss, accuracy"""
         prediction_reporter = ControllerPredictionReporter(source)
         label_gatherer = ControllerLabelGatherer(source)
         ControllerLossLogger(source, logger, name=CTRL_VAL_LOSS)
         ControllerAccuracyLogger(logger, label_gatherer, prediction_reporter, CTRL_VAL_ACC)
+        ids_gatherer = IdsGatherer(source)
+        output_file = self.config.logdir + '/' + 'ctrl_val_ids.txt'
+        IdsLogger(ids_gatherer, logger, output_file, mode='a')
         return source
 
 
-def create_test_reporter(logger: Logger, source, classifiers: List[Classifier], controller: Controller,
+def create_test_reporter(config, logger: Logger, source, classifiers: List[Classifier], controller: Controller,
                          classes: List[int]):
     """
     Reported metrics:
@@ -280,6 +313,7 @@ def create_test_reporter(logger: Logger, source, classifiers: List[Classifier], 
             - confusion matrices (open and closed)
 
     Args:
+        config:
         logger:
         source:
         classifiers:
@@ -294,6 +328,10 @@ def create_test_reporter(logger: Logger, source, classifiers: List[Classifier], 
     ctrl_confusion_reporter = ConfusionMatrixReporter(ctrl_prediction_reporter, ctrl_label_gatherer)
     ControllerConfusionMatrixLogger(logger, ctrl_confusion_reporter, clf_names)
     ControllerAccuracyLogger(logger, ctrl_label_gatherer, ctrl_prediction_reporter, CTRL_ACC)
+
+    ids_gatherer = IdsGatherer(source)
+    output_file = config.logdir + '/' + 'test_ids.txt'
+    IdsLogger(ids_gatherer, logger, output_file, mode='a')
 
     clf_predictors = defaultdict(list)
 
@@ -327,42 +365,4 @@ def create_test_reporter(logger: Logger, source, classifiers: List[Classifier], 
         name = FINAL_CONF_MTX.format(name=algorithm.name)
         title = FINAL_CONF_MTX_TITLE.format(name=algorithm.name)
         ConfusionMatrixLogger(logger, final_confusion, name=name, title=title)
-
     return source
-
-    # def _report_classifiers_metrics(self, classifiers, preds, labels):
-    #     """Compute and log classifier metrics.
-    #
-    #     For each classifier the following metrics:
-    #         open, incl: open predictions vs labels( on all testset)
-    #         open, excl: open predictions vs labels( on exclusive testset, containing known classes)
-    #             Here the samples don't contain "other", but the classifier is allowed to predict "other"
-    #         closed, incl: closed predictions vs labels( on all testset)
-    #             Here the classifier doesn't predict "other", but the samples can contain "other".
-    #         closed, excl: closed predictions vs labels( on exclusive testset, containing known classes)
-    #             Here the classifier doesn't predict "other", also the samples don't contain "other"
-    #
-    #     Note that the labels should already be mapped suitable to the classifier ("other" category mapped to -1)
-    #
-    #     Args:
-    #         classifiers: a list of classifiers
-    #         pred: a dictionary [(open, excl)] -> List[predictions per classifier]
-    #         labels: a dictionary [(open, excl)] -> List[labels per classifier]
-    #     """
-    #
-    #     assert preds.keys() == labels.keys()
-    #     for (open, excl) in preds.keys():
-    #         for pr, lbl, clf in zip(preds[(open, excl)], labels[(open, excl)], classifiers):
-    #             cm_labels = clf.classes + [-1]
-    #             cm = sklearn.metrics.confusion_matrix(lbl, pr, labels=cm_labels)
-    #             pref = f'clf/{clf.idx}/{"open" if open else "closed"}{"_excl" if excl else ""}'
-    #             with self.logger.prefix(pref):
-    #                 self.logger.log_accuracies(cm, cm_labels, log_recalls=False)
-    #                 self.logger.log_confusion_matrix(cm, cm_labels, title=f'Confusion (classifier {clf.idx})')
-    #
-    # def _report_predictor_metrics(self, predictor, all_labels, final_predictions):
-    #     classes = self.classes
-    #     cm = sklearn.metrics.confusion_matrix(all_labels, final_predictions, labels=classes)
-    #     with self.logger.prefix("final/" + predictor.name):
-    #         self.logger.log_accuracies(cm, classnames=classes, log_recalls=False)
-    #         self.logger.log_confusion_matrix(cm, classes, title='Confusion (predictor)')

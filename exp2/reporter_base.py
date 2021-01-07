@@ -267,6 +267,14 @@ class LabelGathererBase(Concatenator):
         return self.get_final_content()
 
 
+class IdsGatherer(Concatenator):
+    def __init__(self, source: SourceReporter):
+        super().__init__(parents=[source])
+
+    def extract_tensor(self, content: ModelState) -> Tc:
+        return content.ids
+
+
 class LabelGatherer(LabelGathererBase):
     """Gathers labels from ModelState object."""
 
