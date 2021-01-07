@@ -6,6 +6,9 @@ class Config:
         self.__opt = opt
         self.__delim = delim
 
+    def get_excluded_keys(self):
+        return [attr for attr in self.__dict__ if attr.startswith('_')]
+
     def __getattr__(self, item):
         return getattr(self.__opt, item)
 
@@ -37,7 +40,6 @@ class Config:
         return argparse.Namespace.__repr__(self.__opt)
 
 
-
 def parse_args(args=None) -> Config:
     lr_choices = ['exp', 'step2', 'step3', 'step4', 'step5', 'poly1', 'poly2', 'poly3', 'poly4', 'const']
     default_lr_scheduler = 'poly1'
@@ -54,6 +56,8 @@ def parse_args(args=None) -> Config:
     parser.add_argument('--update_classifiers', action='store_true', help='Update previous classifiers')
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
     parser.add_argument('--memory_size', type=int, default=1000, help='Memory size')
+    parser.add_argument('--ctrl_memory_size', type=int, default=0,
+                        help='Portion of the memory dedicated to controller. This portion will not be accessed by classifiers.')
     # parser.add_argument('--memory_sampler', type=str, default='greedy', help='Memory sampler', choices=['greedy', 'loss_aware'])
     parser.add_argument('--update_scores', action='store_true', help='Update memory scores at each phase.')
     parser.add_argument('--val_size', type=float, default=0.2,

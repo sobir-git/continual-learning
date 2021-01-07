@@ -3,7 +3,7 @@ import wandb
 import utils
 from exp2.config import parse_args
 from exp2.data import prepare_data
-from exp2.memory import Memory
+from exp2.memory import create_memory_storages, update_memories
 from exp2.model import Model
 from logger import Logger
 
@@ -14,7 +14,7 @@ def run(config):
     console_logger.info('config:' + str(config))
     # prepare data
     data = prepare_data(config)
-    memory = Memory(config, data.train_source, data.train_transform, data.test_transform)
+    clf_memory, ctrl_memory = create_memory_storages(config, data)
     model = Model(config, logger=logger)
     logger.log({'class_order': data.class_order})
 
@@ -28,12 +28,12 @@ def run(config):
 
         # train a new classifier on new samples
         console_logger.info('Training a new classifier')
-        otherset = memory.get_dataset() if config.other else None
+        otherset = clf_memory.get_dataset() if config.other else None
         model.train_new_classifier(trainset, otherset=otherset)
 
         # add the new training samples to memory
         console_logger.info('Updating memory')
-        memory.update(ids=trainset.ids, new_classes=trainset.classes)
+        update_memories(ctrl_memory, clf_memory, trainset)
         #
         # # update previous classifiers
         # if config.update_classifiers:
@@ -42,7 +42,7 @@ def run(config):
 
         # train a new controller
         console_logger.info('Training a new controller')
-        model.train_a_new_controller(memory.get_dataset())
+        model.train_a_new_controller(ctrl_memory.get_dataset())
 
         # test the model
         console_logger.info('Testing the model')
@@ -53,5 +53,6 @@ def run(config):
 if __name__ == '__main__':
     config = parse_args()
     group = config.wandb_group or 'test'
-    wandb.init(project='exp2', group=group, config=config, config_exclude_keys={'wandb_group'})
+    config_exclude_keys = config.get_excluded_keys() + ['wandb_group']
+    wandb.init(project='exp2', group=group, config=config, config_exclude_keys=config_exclude_keys)
     run(config)

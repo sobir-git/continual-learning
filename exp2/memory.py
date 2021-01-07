@@ -8,7 +8,7 @@ from exp2.data import PartialDataset
 
 class Memory:
     # TODO: write tests
-    def __init__(self, config, source: Dataset, train_transform, test_transform):
+    def __init__(self, max_size, source: Dataset, train_transform, test_transform):
         self.train_transform = train_transform
         self.test_transform = test_transform
         self._scores = dict()
@@ -16,7 +16,7 @@ class Memory:
         assert not isinstance(source, PartialDataset)
         assert isinstance(source, Dataset)
         self.source = source
-        self.max_size = config.memory_size
+        self.max_size = max_size
 
     def get_classes(self):
         return list(self._ids.keys())
@@ -33,7 +33,7 @@ class Memory:
         return PartialDataset(self.source, ids, self.train_transform, test_transform=self.test_transform,
                               classes=self.get_classes())
 
-    def update(self, ids: np.ndarray, new_classes: List[int], scores: np.ndarray=None):
+    def update(self, ids: np.ndarray, new_classes: List[int], scores: np.ndarray = None):
         """ Update memory with new classes. If 'scores' is None, assign equal scores.
         """
         labels = PartialDataset.get_labels(self.source)[ids]
@@ -80,7 +80,7 @@ class Memory:
             self._ids[cls] = ids[sorted_idx]
 
     def _reduce_cls(self, cls, per_class):
-        assert per_class <= len(self._ids[cls])
+        assert per_class <= len(self._ids[cls])  # TODO: is here a bug?
         self._ids[cls] = self._ids[cls][:per_class]
         self._scores[cls] = self._scores[cls][:per_class]
 
@@ -92,3 +92,25 @@ class Memory:
 
     def _assert_maxsize(self):
         assert sum(len(ids) for ids in self._ids.values()) <= self.max_size
+
+
+def create_memory_storages(config, data):
+    """Return memory storages for controller and for classifiers."""
+    memory_size = config.memory_size
+    ctrl_memory_size = config.ctrl.memory_size
+    clf_memory_size = memory_size - ctrl_memory_size
+    if ctrl_memory_size == 0:
+        # both use the same memory
+        clf_memory = ctrl_memory = Memory(memory_size, data.train_source, data.train_transform, data.test_transform)
+    else:
+        clf_memory = Memory(clf_memory_size, data.train_source, data.train_transform,
+                            data.test_transform)
+        ctrl_memory = Memory(ctrl_memory_size, data.train_source, data.train_transform, data.test_transform)
+
+    return clf_memory, ctrl_memory
+
+
+def update_memories(ctrl_memory, clf_memory, trainset: PartialDataset):
+    middle = len(trainset.ids) // 2
+    clf_memory.update(ids=trainset.ids[:middle], new_classes=trainset.classes)
+    ctrl_memory.update(ids=trainset.ids[middle:], new_classes=trainset.classes)
