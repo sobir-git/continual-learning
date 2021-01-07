@@ -1,6 +1,7 @@
 dataset: CIFAR10
-memory_size: 500
-ctrl_memory_size: 100
+shared_memory_size: 0
+clf_memory_size: 350
+ctrl_memory_size: 150
 ctrl:
     lr: 0.001
     min_lr: 0.00001

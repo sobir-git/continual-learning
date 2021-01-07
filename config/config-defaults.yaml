@@ -2,7 +2,9 @@ dataset: CIFAR10
 n_classes_per_phase: 2
 n_phases: 5
 other: true
-memory_size: 500
+shared_memory_size: 0
+clf_memory_size: 350
+ctrl_memory_size: 150
 clf:
   epochs: 50
   epochs_tol: 20
@@ -18,7 +20,6 @@ ctrl:
   hidden_layer_scale: 0.0
   lr: 0.01
   lr_scheduler: poly1
-  memory_size: 0
   min_lr: 1.0e-05
   pos: after
 lr_decay: 0.25

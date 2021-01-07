@@ -12,7 +12,10 @@ def make_nested(d, subkeys, delim='_'):
             subkey = next((s for s in subkeys if k.startswith(s + delim)))
             new_d[subkey][k[len(subkey) + delim_len:]] = v
         except StopIteration:
-            new_d[k] = v
+            if isinstance(v, dict):
+                new_d[k].update(v)
+            else:
+                new_d[k] = v
     return dict(new_d)
 
 

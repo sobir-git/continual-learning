@@ -187,11 +187,13 @@ class Model:
     def _train_a_new_controller_end(self):
         pass
 
-    def train_a_new_controller(self, dataset: PartialDataset):
+    def train_a_new_controller(self, ctrl_memory: Memory, shared_memory: Memory):
         """Create a new controller and train it. It will replace the current controller with the new one."""
         config = self.config
         self._create_new_controller()
-        optimizer = self.controller.get_optimizer()  # TODO: replace next line
+        # create combined dataset
+        dataset = ctrl_memory.get_dataset(train=True).mix(shared_memory.get_dataset(train=True))
+        optimizer = self.controller.get_optimizer()
         trainset, valset = dataset.split(test_size=config.val_size)
         train_loader = create_loader(config, trainset)
         val_loader = create_loader(config, valset)
@@ -308,7 +310,7 @@ class Model:
                 stopper.update(loss)
             self._train_classifier_epoch_end(epoch)
 
-    def train_new_classifier(self, newset: PartialDataset, ctrl_memory: Memory, clf_memory: Memory):
+    def train_new_classifier(self, newset: PartialDataset, clf_memory: Memory, ctrl_memory, shared_memory: Memory):
         """Train a new classifier on the dataset. Optionally given otherset that contains
         examples from unknown classes.
 
@@ -327,19 +329,50 @@ class Model:
                 and validate with newset_val + otherset_val
 
         Args:
-            ctrl_memory: memory storage of controller
             clf_memory: memory storage of classifiers
+            ctrl_memory: memory storage of controller
+            shared_memory: shared memory storage
             newset (PartialDataset): dataset of new class samples
         """
         new_classes = newset.classes
         val_size = self.config.val_size
 
-        def get_othersets(clf_memory, ctrl_memory, val_size):
-            if ctrl_memory is clf_memory:  # TODO: imho can still overfit if classifiers update
-                otherset_tr, otherset_val = clf_memory.get_dataset(train=True).split(test_size=val_size)
-            else:  # if separate memories, ctrl_memory becomes validation set
+        def get_othersets(clf_memory: Memory, ctrl_memory: Memory, shared_memory: Memory, val_size: float):
+            """
+
+            Args:
+                clf_memory (Memory):
+                ctrl_memory (Memory):
+                shared_memory (Memory):
+                val_size (float): the ratio of validation set relative to total (clf + ctrl + shared)
+            """
+            # get number of samples in each of memories
+            cf = clf_memory.get_n_samples()
+            ct = ctrl_memory.get_n_samples()
+            sh = shared_memory.get_n_samples()
+            tot = cf + ct + sh
+
+            # handle a degenarate case
+            if cf + sh == 0:
                 otherset_tr = clf_memory.get_dataset(train=True)
-                otherset_val = ctrl_memory.get_dataset(train=False)
+                otherset_val = clf_memory.get_dataset(train=False)
+                return otherset_tr, otherset_val
+
+            # start creating otherser_val, from ctrl_memory
+            otherset_val = ctrl_memory.get_dataset(train=False)
+
+            # leftover val_size, involves a little math
+            left_val_size = (val_size * tot - ct) / (cf + sh)
+
+            # combine shared memory and classifier memory into a dataset
+            otherset = shared_memory.get_dataset(train=True).mix(clf_memory.get_dataset(train=True))
+
+            # if still need more validation data, get from shared + clf
+            if left_val_size > 0:
+                otherset_tr, otherset_val2 = otherset.split(test_size=val_size)
+                otherset_val = otherset_val.mix(otherset_val2)
+            else:
+                otherset_tr = otherset
             return otherset_tr, otherset_val
 
         # split new dataset into train and validation
@@ -348,7 +381,8 @@ class Model:
         # make up otherset, a dataset consisting of "other" categories
         otherset_tr, otherset_val = None, None
         if self.config.other:
-            otherset_tr, otherset_val = get_othersets(clf_memory, ctrl_memory, val_size)
+            otherset_tr, otherset_val = get_othersets(clf_memory=clf_memory, ctrl_memory=ctrl_memory,
+                                                      shared_memory=shared_memory, val_size=val_size)
 
         # create the new classifier, prepared for new classes
         classifier = self._create_classifier(new_classes)

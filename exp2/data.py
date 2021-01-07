@@ -78,6 +78,25 @@ class PartialDataset(Dataset):
             labels = np.array(labels)
         return labels
 
+    def split_by_sizes(self, *sizes):
+        sizes = list(sizes)
+        if -1 not in sizes:
+            assert sum(sizes) <= len(self.ids)
+        assert sizes.count(-1) in [0, 1]
+
+        if -1 in sizes:
+            sizes[sizes.index(-1)] = len(self.ids) - sum(sizes)
+
+        # shuffle, then split ids
+        ids = self.ids.copy()
+        np.random.shuffle(ids)
+        i = 0
+        for size in sizes:
+            part = ids[i:i + size]
+            PartialDataset(self.source, ids=part, train=self._train, )
+
+            i += size
+
     def split(self, test_size=None, train_size=None):
         """Split into train and test set. Also set test transforms for the testset.
         if test_size == 0, then testset will still be a dataset but empty.
@@ -94,9 +113,11 @@ class PartialDataset(Dataset):
         else:
             train_ids, test_ids = \
                 train_test_split(self.ids, train_size=train_size, test_size=test_size, stratify=self.labels)
-        self_train = PartialDataset(self.source, train_ids, True, self.train_transform, self.test_transform,
-                                    self._classes)
-        self_test = PartialDataset(self.source, test_ids, True, self.test_transform, self.test_transform, self._classes)
+
+        self_train = PartialDataset(self.source, train_ids, train=True, train_transform=self.train_transform,
+                                    test_transform=self.test_transform, classes=self._classes)
+        self_test = PartialDataset(self.source, test_ids, train=False, train_transform=self.train_transform,
+                                   test_transform=self.test_transform, classes=self._classes)
         return self_train, self_test
 
     def mix(self, otherset):
@@ -116,6 +137,11 @@ class PartialDataset(Dataset):
         train = self._train
         return self.__class__(source, ids, train, train_transform=self.train_transform,
                               test_transform=test_transform, classes=classes)
+
+    def subset(self, ids):
+        """Return a new dataset with samples of those ids"""
+        return PartialDataset(source=self.source, ids=ids, train=self._train, train_transform=self.train_transform,
+                              test_transform=self.test_transform, classes=self._classes)
 
     def is_train(self):
         return self._train
