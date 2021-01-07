@@ -4,6 +4,7 @@ import numpy as np
 import torchvision
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import Compose
 
 from utils import np_a_in_b, get_console_logger
 from dataloader import get_statistics, get_augment_transforms
@@ -16,12 +17,11 @@ class PartialDataset(Dataset):
     _train: bool
     _transform: Callable
 
-    def __init__(self, source: Dataset, ids: np.ndarray, train: bool, train_transform: Callable,
-                 test_transform: Callable, classes: List[int]):
-        assert train_transform is not None
+    def __init__(self, source: Dataset, ids: np.ndarray, train: bool, train_transform: Compose,
+                 test_transform: Compose, classes: List[int]):
+        assert len(train_transform.transforms) >= len(test_transform.transforms)
         self.train_transform = train_transform
         self.test_transform = test_transform
-        # TODO: loose check that train transform no less than the test one
         self.source = source
         self._classes = classes
         self.ids = ids if isinstance(ids, np.ndarray) else np.array(ids, dtype=int)
