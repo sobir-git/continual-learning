@@ -35,7 +35,7 @@ class Controller(nn.Module):
         return len(self.classifiers)
 
     def get_optimizer(self):
-        return optim.SGD(params=self.parameters(), lr=self.config.ctrl.lr, momentum=0.9)
+        return optim.SGD(params=self.parameters(), lr=self.config.ctrl['lr'], momentum=0.9)
 
     def forward(self, input):
         return self.net(input)
@@ -76,7 +76,7 @@ class Controller(nn.Module):
         if ctrl_state.outputs is not None:
             return ctrl_state
 
-        if self.config.ctrl.pos == 'after':
+        if self.config.ctrl['pos'] == 'after':
             # gather classifier outputs
             clf_outputs = []
             with torch.no_grad():
@@ -116,8 +116,8 @@ class MLPController(Controller):
         self.net = self._create_net(config, n_classifiers, in_features)
 
     def _create_net(self, config, n_classifiers, in_features):
-        hidden_layer_scale = config.ctrl.hidden_layer_scale
-        activation = config.ctrl.hidden_activation
+        hidden_layer_scale = config.ctrl['hidden_layer_scale']
+        activation = config.ctrl['hidden_activation']
         hidden_layer_size = int(n_classifiers * hidden_layer_scale)
         return nn.Sequential(
             nn.Linear(in_features=in_features, out_features=hidden_layer_size),
@@ -140,12 +140,12 @@ class LinearController(MLPController):
 
 
 def create_controller(config, idx, classifiers, device) -> Controller:
-    if config.ctrl.pos == 'before':
+    if config.ctrl['pos'] == 'before':
         _, head_constructor = split_model(config, PRETRAINED)
         net = head_constructor(n_classes=classifiers)
         net = CNNController(config, classifiers, net)
     else:
-        if config.ctrl.hidden_layer_scale > 0:
+        if config.ctrl['hidden_layer_scale'] > 0:
             # that's MLP
             net = MLPController(config, idx, classifiers)
         else:

@@ -126,22 +126,19 @@ import os
 import logging
 
 
-def get_console_logger(folder, name=__name__):
+def get_console_logger(name=None):
+    if name is None:
+        name = __name__
     # global logger
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter("[%(asctime)s] %(levelname)s:%(name)s:%(message)s")
-    # file logger
-    os.makedirs(folder, exist_ok=True)
-    fh = logging.FileHandler(os.path.join(folder, 'checkpoint.log'), mode='w')
-    fh.setLevel(logging.INFO)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
     # console logger
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    if not logger.hasHandlers():
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
     return logger
 
 
@@ -281,7 +278,7 @@ def np_a_in_b(a, b) -> np.ndarray:
 
 class TrainingStopper:
     def __init__(self, config):
-        tol = config.epochs_tol
+        tol = config['epochs_tol']
         self.tol = tol
         self.losses = []
 

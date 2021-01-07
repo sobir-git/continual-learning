@@ -1,31 +1,33 @@
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 import torchvision
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 
-from utils import np_a_in_b
+from utils import np_a_in_b, get_console_logger
 from dataloader import get_statistics, get_augment_transforms
-from exp2.config import Config
 import exp2.tiny_data
+
+console_logger = get_console_logger(__name__)
 
 
 class PartialDataset(Dataset):
-
-    def __init__(self, source, ids, transform, classes=None, test_transform=None):
+    def __init__(self, source: Dataset, ids: np.ndarray, transform, classes: List[int], test_transform=None):
         assert transform is not None
         self.transform = transform
         self.test_transform = test_transform
         self.source = source
-        self.ids: np.ndarray = ids  # only self ids, no otherset when involved
-        self.labels = self.get_labels(self.source)[self.ids]
-        self._classes = classes if classes is not None \
-            else list(set(self.labels))
+        self._classes = classes
+        self.ids = ids if isinstance(ids, np.ndarray) else np.array(ids, dtype=int)
+
+        # get corresponding labels
+        self.labels = self.get_labels(self.source)[ids] if len(ids) > 0 \
+            else np.array([])
 
     @property
     def classes(self):
-        """The list of classes only in self (not including otherset)"""
+        """The list of classes"""
         return self._classes
 
     def __getitem__(self, item):
@@ -62,10 +64,14 @@ class PartialDataset(Dataset):
         """Split into train and test set. If it has otherset, it will also be split in the same ratio.
         Also set val augmentation set to test ones.
         """
-        train_ids, test_ids = \
-            train_test_split(self.ids, train_size=train_size, test_size=test_size, stratify=self.labels)
-        self_train = PartialDataset(self.source, train_ids, self.transform)
-        self_test = PartialDataset(self.source, test_ids, self.test_transform)
+        if len(self.ids) == 0:
+            console_logger.warning('Trying to split empty dataset. Will split into two empties anyways.')
+            train_ids, test_ids = [], []
+        else:
+            train_ids, test_ids = \
+                train_test_split(self.ids, train_size=train_size, test_size=test_size, stratify=self.labels)
+        self_train = PartialDataset(self.source, train_ids, self.transform, self._classes)
+        self_test = PartialDataset(self.source, test_ids, self.test_transform, self._classes)
         return self_train, self_test
 
     def mix(self, otherset):
@@ -116,7 +122,7 @@ def create_loader(config, dataset) -> DataLoader:
     return DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
 
 
-def _get_dataset(config: Config, train: bool, transforms):
+def _get_dataset(config, train: bool, transforms):
     """Create the train or test with the optionally given target_transform."""
     # Support for *some* pytorch default loaders is provided. Code is made such that adding new datasets is super easy, given they are in ImageFolder format.
     if config.dataset in ['CIFAR10', 'CIFAR100', 'MNIST', 'KMNIST', 'FashionMNIST', 'TinyCIFAR10']:

@@ -5,11 +5,11 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from exp2.classifier import Classifier
-from exp2.config import Config
 from exp2.controller import Controller, create_controller
 from exp2.data import create_loader, PartialDataset
 from exp2.feature_extractor import create_models
 from exp2.lr_scheduler import get_classifier_lr_scheduler, get_controller_lr_scheduler
+from exp2.memory import Memory
 from exp2.model_state import ModelState, init_states
 from exp2.predictor import Predictor, ByCtrl, FilteredController
 from exp2.reporter import SourceReporter, ControllerReporter, create_test_reporter, ClassifierReporter
@@ -77,7 +77,7 @@ class Model:
     predictors: List[Predictor] = [ByCtrl(), FilteredController()]
     controller = None
 
-    def __init__(self, config: Config, logger: Logger):
+    def __init__(self, config, logger: Logger):
         self.logger = logger
         self.device = get_device()
         self.classifiers: List[Classifier] = []
@@ -98,7 +98,7 @@ class Model:
 
     def _create_classifier_optimizer(self, classifier):
         config = self.config
-        return optim.SGD(classifier.parameters(), lr=config.clf.lr, momentum=0.9, weight_decay=config.weight_decay)
+        return optim.SGD(classifier.parameters(), lr=config.clf['lr'], momentum=0.9, weight_decay=config.weight_decay)
 
     def _create_classifier(self, classes) -> Classifier:
         """Create a new classifier and add it. Then return it."""
@@ -199,7 +199,7 @@ class Model:
         lr_scheduler = get_controller_lr_scheduler(config, optimizer)
 
         self._train_a_new_controller_start()
-        for epoch in range(1, config.ctrl.epochs + 1):
+        for epoch in range(1, config.ctrl['epochs'] + 1):
             if stopper.do_stop():
                 break
             self._train_a_new_controller_epoch_start(epoch, lr_scheduler)
@@ -275,14 +275,13 @@ class Model:
     def _train_classifier_epoch_end(self, epoch):
         self.logger.commit()
 
-    def _train_classifier(self, classifier, dataset, criterion, optimizer):
+    def _train_classifier(self, classifier, train_loader, val_loader, criterion, optimizer):
         """Train the classifier for a number of epochs."""
         config = self.config
-        train_loader, val_loader = train_test_split(config, dataset, config.val_size)
         stopper = TrainingStopper(config.clf)
         lr_scheduler = get_classifier_lr_scheduler(config, optimizer)
 
-        for epoch in range(1, config.clf.epochs + 1):
+        for epoch in range(1, config.clf['epochs'] + 1):
             if stopper.do_stop():
                 break
             self._train_classifier_epoch_start(epoch, lr_scheduler)
@@ -300,21 +299,62 @@ class Model:
                 lr_scheduler.step(loss)
             self._train_classifier_epoch_end(epoch)
 
-    def train_new_classifier(self, newset: PartialDataset, otherset: PartialDataset = None):
+    def train_new_classifier(self, newset: PartialDataset, ctrl_memory: Memory, clf_memory: Memory):
         """Train a new classifier on the dataset. Optionally given otherset that contains
         examples from unknown classes.
 
+        Algorithm:
+            1. if training with other:
+                newset_tr, newset_val = slit(newset)
+                if shared memory (ctrl_memory is clf_memory):
+                    otherset_tr, otherset_val = split(ctrl_memory)  # (or clf_memory, doesn't matter)
+                else:
+                    otherset_tr = clf_memory
+                    otherset_val = ctrl_memory
+
+            2. train with newset_tr + otherset_tr
+                and validate with newset_val + otherset_val
+
         Args:
+            ctrl_memory: memory storage of controller
+            clf_memory: memory storage of classifiers
             newset (PartialDataset): dataset of new class samples
-            otherset (optional, PartialDataset): dataset of old class samples( serving as a "other" category)
         """
         new_classes = newset.classes
+        val_size = self.config.val_size
+        # split new dataset into train and validation
+        newset_tr, newset_val = newset.split(val_size)
+
+        # make up otherset, dataset consisting of "other" categories
+        otherset_tr, otherset_val = None, None
+        if self.config.other:
+            # if share same memory:
+            if ctrl_memory is clf_memory:  # TODO: imho can still overfit if classifiers update
+                otherset_tr, otherset_val = clf_memory.get_dataset().split(test_size=val_size)
+            else:  # if separate memories, ctrl_memory becomes validation set
+                otherset_tr = clf_memory.get_dataset()
+                otherset_val = ctrl_memory.get_dataset()
+
+        # create the new classifier, prepared for new classes
         classifier = self._create_classifier(new_classes)
-        criterion = get_classification_criterion(self.config, newset, otherset, self.device)
+
+        # define criterion; includes class-balancing logic
+        criterion = get_classification_criterion(self.config, newset_tr, otherset_tr, self.device)
+
+        # create optimizer
         optimizer = self._create_classifier_optimizer(classifier)
-        dataset = newset.mix(otherset) if otherset else newset
+
+        # create final training set, combination of new and other categories
+        trainset = newset_tr.mix(otherset_tr) if otherset_tr else newset_tr
+        train_loader = create_loader(self.config, trainset)
+
+        # create final validation set, combination of new and other categories
+        valset = newset_tr.mix(otherset_val) if otherset_val else newset_val
+        val_loader = create_loader(self.config, valset)
+
+        # start training
         self._train_new_classifier_start()
-        self._train_classifier(classifier, dataset, criterion, optimizer)
+        self._train_classifier(classifier, train_loader, val_loader, criterion, optimizer)
         self._train_new_classifier_end()
 
     @torch.no_grad()

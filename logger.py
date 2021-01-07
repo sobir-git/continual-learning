@@ -41,7 +41,7 @@ def traverse_dict(d, skip_fn=lambda d: False, pref=None):
 
 def dict_deep_update(d, u):
     """
-    Deep version of d1.update(d2).
+    Deep version of d.update(u). Updates in place.
     Args:
         d: Dictionary that needs updating
         u: Dictionary used to update
@@ -52,8 +52,8 @@ def dict_deep_update(d, u):
     Examples:
         >>> d1 = {'net1': {'pretrain': {'loss': 0.25}}}
         >>> d2 = {'net1': {'pretrain': {'accuracy': 0.87}}}
-        >>> dict_deep_update(d, u)
-        >>> assert d == {'net1': {'pretrain': {'loss': 0.25, 'accuracy': 0.87}}}
+        >>> dict_deep_update(d1, d2)
+        >>> assert d1 == {'net1': {'pretrain': {'loss': 0.25, 'accuracy': 0.87}}}
 
     """
     for k, v in u.items():

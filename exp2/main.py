@@ -1,15 +1,16 @@
 import wandb
 
 import utils
-from exp2.config import parse_args
+from exp2.config import parse_args, make_nested
 from exp2.data import prepare_data
-from exp2.memory import create_memory_storages, update_memories
+from exp2.memory import create_memory_storages, update_memories, log_total_memory_sizes
 from exp2.model import Model
-from logger import Logger
+from logger import Logger, dict_deep_update
+
+console_logger = utils.get_console_logger(name='main')
 
 
 def run(config):
-    console_logger = utils.get_console_logger(config.logdir, name='main')
     logger = Logger(config, console_logger=console_logger)
     console_logger.info('config:' + str(config))
     # prepare data
@@ -29,7 +30,7 @@ def run(config):
         # train a new classifier on new samples
         console_logger.info('Training a new classifier')
         otherset = clf_memory.get_dataset() if config.other else None
-        model.train_new_classifier(trainset, otherset=otherset)
+        model.train_new_classifier(trainset, ctrl_memory, clf_memory)
 
         # add the new training samples to memory
         console_logger.info('Updating memory')
@@ -48,11 +49,38 @@ def run(config):
         console_logger.info('Testing the model')
         model.phase_end()
         model.test(cumul_testset)
+        log_total_memory_sizes(clf_memory, ctrl_memory)
 
 
 if __name__ == '__main__':
-    config = parse_args()
-    group = config.wandb_group or 'test'
-    config_exclude_keys = config.get_excluded_keys() + ['wandb_group']
-    wandb.init(project='exp2', group=group, config=config, config_exclude_keys=config_exclude_keys)
+    import os
+    import yaml
+
+    args = parse_args()
+    default_config = dict()
+    if os.path.isfile(args.defaults):
+        console_logger.info('Loading config defaults: %s', args.defaults)
+        with open(args.defaults) as f:
+            y = yaml.safe_load(f)
+            default_config.update(y)
+
+    config = dict()
+    if os.path.isfile(args.config):
+        console_logger.info('Loading config: %s', args.config)
+        with open(args.config) as f:
+            y = yaml.safe_load(f)
+            config.update(y)
+    config = make_nested(config, ['clf', 'ctrl'])
+    default_config = make_nested(default_config, ['clf', 'ctrl'])
+
+    # update defaults
+    dict_deep_update(default_config, config)
+    final_config = default_config
+
+    # init wandb and get its wrapped config
+    group = args.wandb_group
+    wandb.init(project='exp2', group=group, config=final_config)
+    config = wandb.config
+
+    # run
     run(config)

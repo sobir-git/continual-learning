@@ -1,0 +1,11 @@
+dataset: CIFAR10
+memory_size: 500
+ctrl_memory_size: 100
+ctrl:
+    lr: 0.001
+    min_lr: 0.00001
+    epochs: 100
+clf:
+    lr: 0.001
+    min_lr: 0.00001
+    epochs: 50
