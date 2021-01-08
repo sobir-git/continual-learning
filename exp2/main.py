@@ -85,5 +85,8 @@ if __name__ == '__main__':
     wandb.init(project='exp2', group=group, config=final_config)
     config = wandb.config
 
+    # create log directory
+    os.makedirs(config.logdir, exist_ok=True)
+
     # run
     run(config)

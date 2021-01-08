@@ -7,10 +7,6 @@ from torch.utils.data.sampler import SubsetRandomSampler
 import random
 import numpy as np
 
-from utils import get_default_device
-
-device = get_default_device()
-
 
 class CIDataLoader:
     """
