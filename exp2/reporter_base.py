@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
-from typing import List, Union, TypeVar, Type, Iterator, Sequence, Callable
+from typing import List, Union, TypeVar, Type, Iterator, Sequence, Callable, Dict
 
 import numpy as np
 import sklearn
@@ -9,6 +9,7 @@ from typing_extensions import Protocol
 
 from exp2.model_state import ModelState
 from logger import Logger, get_accuracy
+from utils.confusion_matrix import rectangular_confusion_matrix
 
 T = TypeVar('T')
 Tc = TypeVar("Tc", covariant=True)
@@ -331,32 +332,72 @@ class AccuracyLogger(MetricLogger):
 TClassnames = Sequence[Union[int, str]]
 
 
-class ConfusionMatrixReporter(EndableReporter):
-    @dataclass
-    class Report:
-        confusion_matrix: np.ndarray
-        classes: List[int]
+class ConfusionMatrixReporterBase(EndableReporter):
+    def __init__(self, prediction_reporter: PredictionReporterBase, label_gatherer: LabelGatherer, *args, **kwargs):
+        parents = [prediction_reporter, label_gatherer]
+        super().__init__(parents)
+        self._prediction_reporter = prediction_reporter
+        self._label_gatherer = label_gatherer
+
+    def get_predictions(self):
+        return self._prediction_reporter.get_predictions()
+
+    def get_labels(self):
+        return self._label_gatherer.get_labels()
+
+
+@dataclass
+class ConfusionMatrixReport:
+    confusion_matrix: np.ndarray
+    classes: List[int]
+
+
+class ConfusionMatrixReporter(ConfusionMatrixReporterBase):
 
     def __init__(self, prediction_reporter: PredictionReporterBase, label_gatherer: LabelGatherer,
                  classes: List[int] = None):
-        parents = [prediction_reporter, label_gatherer]
-        super().__init__(parents)
-        self.prediction_reporter = prediction_reporter
-        self.label_gatherer = label_gatherer
+        super().__init__(prediction_reporter, label_gatherer)
         self.classes = classes
 
     def compute_final_content(self):
-        predictions = self.prediction_reporter.get_predictions()
-        labels = self.label_gatherer.get_labels()
+        predictions = self.get_predictions()
+        labels = self.get_labels()
         matrix = sklearn.metrics.confusion_matrix(labels, predictions, labels=self.classes)
         if self.classes is None:
             self.classes = list(range(matrix.shape[0]))
-        return self.Report(matrix, self.classes)
+        return ConfusionMatrixReport(matrix, self.classes)
+
+
+@dataclass
+class RectangularConfusionMatrixReport:
+    confusion_matrix: np.ndarray
+    true_classes: List[int]  # actual classes, making up rows of confusion matrix
+    pred_classes: List[int]  # predictable classes, making up columns of confusion matrix
+
+
+class RectangularConfusionMatrixReporter(ConfusionMatrixReporterBase):
+
+    def __init__(self, prediction_reporter: PredictionReporterBase, label_gatherer: LabelGatherer,
+                 true_classes: List[int] = None, pred_classes: List[int] = None):
+        super().__init__(prediction_reporter, label_gatherer)
+        self.pred_classes = pred_classes
+        self.true_classes = true_classes
+
+    def compute_final_content(self):
+        predictions = self.get_predictions()
+        labels = self.get_labels()
+        matrix = rectangular_confusion_matrix(labels, predictions, true_labels=self.true_classes,
+                                              pred_labels=self.pred_classes)
+        if self.true_classes is None:
+            self.true_classes = list(range(matrix.shape[0]))
+        if self.pred_classes is None:
+            self.pred_classes = list(range(matrix.shape[1]))
+        return RectangularConfusionMatrixReport(matrix, self.true_classes, self.pred_classes)
 
 
 class ConfusionMatrixLogger(LoggerBase):
-    def __init__(self, logger: Logger, confusion_reporter: ConfusionMatrixReporter, name: str, title: str,
-                 classnames: TClassnames = None, *args, **kwargs):
+    def __init__(self, logger: Logger, confusion_reporter: ConfusionMatrixReporterBase, name: str, title: str,
+                 classnames: Dict[int, str] = None, *args, **kwargs):
         parents = [confusion_reporter]
         super().__init__(parents=parents, logger=logger, *args, **kwargs)
         self.confusion_reporter = confusion_reporter
@@ -367,9 +408,24 @@ class ConfusionMatrixLogger(LoggerBase):
     def log_at_end(self):
         report = self.confusion_reporter.get_final_content()
         confusion_matrix = report.confusion_matrix
-        if self.classnames is None:
-            self.classnames = self.confusion_reporter.classes
-        self.logger.log_confusion_matrix(confusion_matrix, self.classnames, title=self.title, name=self.name)
+        classes, true_classes, pred_classes = None, None, None
+        if isinstance(report, ConfusionMatrixReport):
+            classes = report.classes
+        elif isinstance(report, RectangularConfusionMatrixReport):
+            true_classes = report.true_classes
+            pred_classes = report.pred_classes
+
+        def map_classes(_classes):
+            if _classes is not None:
+                return [self.classnames[cls] for cls in _classes]
+
+        if self.classnames is not None:
+            classes = map_classes(classes)
+            true_classes = map_classes(true_classes)
+            pred_classes = map_classes(pred_classes)
+
+        self.logger.log_confusion_matrix(confusion_matrix, labels=classes, true_labels=true_classes,
+                                         pred_labels=pred_classes, title=self.title, name=self.name)
 
     def compute_final_content(self):
         pass

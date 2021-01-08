@@ -1,13 +1,19 @@
 import itertools
 from collections import defaultdict
 
-from utils import np_a_in_b
+import PIL.Image as PILImage
+import matplotlib.pyplot as plt
+import seaborn as sns
+import six
+from matplotlib.axes import Axes
+
 from exp2.classifier import Classifier
 from exp2.controller import Controller
 from exp2.predictor import Givens, Predictor
-from exp2.reporter_strings import *
 from exp2.reporter_base import *
+from exp2.reporter_strings import *
 from logger import Logger, get_accuracy
+from utils import np_a_in_b
 
 
 class IdsLogger(LoggerBase):
@@ -218,6 +224,51 @@ class FinalPredictionReporter(PredictionReporterBase, EndableReporter):
         return self.get_final_content()
 
 
+class StackedConfusionMatricesLogger(LoggerBase):
+    def __init__(self, logger: Logger, confusion_reporters: List[RectangularConfusionMatrixReporter], key: str,
+                 title: str, titles: List[str]):
+        super().__init__(logger, parents=confusion_reporters)
+        self.confusion_reporters = confusion_reporters
+        self.title = title
+        self.titles = titles
+        self.key = key
+
+    def log_at_end(self):
+        reports = [reporter.get_final_content() for reporter in self.confusion_reporters]
+        matrices = [r.confusion_matrix for r in reports]
+        fig, axs = plt.subplots(ncols=len(matrices))
+        if isinstance(axs, Axes):  # if ncols == 1, plt.subplots returns single Axes obsect instead
+            axs = np.array([axs])
+        vmin = min([m.min() for m in matrices])
+        vmax = max([m.max() for m in matrices])
+        cmap = sns.color_palette('rocket', as_cmap=True)
+        rows = reports[0].true_classes
+        for i, m in enumerate(matrices):
+            columns = reports[i].pred_classes
+            sns.heatmap(m, ax=axs[i], cbar=False, xticklabels=columns, yticklabels=rows,
+                        linewidths=0, cmap=cmap, vmin=vmin, vmax=vmax, square=True)
+            if self.titles:
+                axs[i].set_title(self.titles[i])
+
+        # do some math to calculate figure size
+        gh = matrices[0].shape[0]
+        gw = sum(m.shape[1] for m in matrices)
+        fh = max(4, gh / 10)
+        fw = gw / gh * fh + 1.5
+        fig.set_size_inches([fw, fh])
+
+        if self.title:
+            fig.suptitle(self.title)
+        fig.tight_layout()
+        buf = six.BytesIO()
+        fig.savefig(buf, bbox_inches='tight')
+        image = PILImage.open(buf)
+        self.logger.log_image(self.key, image)
+
+    def compute_final_content(self):
+        pass
+
+
 class ClassifierReporter:
     def __init__(self, config, logger, source: SourceReporter, classifier: Classifier, mode: str):
         self.source = source
@@ -330,29 +381,38 @@ def create_test_reporter(config, logger: Logger, source, classifiers: List[Class
     ControllerAccuracyLogger(logger, ctrl_label_gatherer, ctrl_prediction_reporter, CTRL_ACC)
 
     ids_gatherer = IdsGatherer(source)
-    output_file = config.logdir + '/' + 'test_ids.txt'
-    IdsLogger(ids_gatherer, logger, output_file, mode='a')
+    _output_file = config.logdir + '/' + 'test_ids.txt'
+    IdsLogger(ids_gatherer, logger, _output_file, mode='a')
+    plain_label_gatherer = LabelGatherer(source)
 
-    clf_predictors = defaultdict(list)
-
+    # gather predictions and log classifier accuracies
+    clf_predictors = defaultdict(list)  # (open|closed: bool) -> List[ClassifierPredictionReporter]
     for clf in classifiers:
         for is_open, is_exclusive in itertools.product([True, False], repeat=2):
-            name = CLF_ACC.format(clf.idx, is_open, is_exclusive, is_test=True)
-            label_gatherer = ClassifierLabelGatherer(is_exclusive, clf, source)
-            prediction_reporter = ClassifierPredictionReporter(clf, source, is_open, is_exclusive)
-            ClassifierAccuracyLogger(clf, name, logger, label_gatherer, prediction_reporter)
-            clf_classes = clf.classes + [clf.other_label]
-            conf_reporter = ConfusionMatrixReporter(prediction_reporter, label_gatherer, clf_classes)
-            name = CLF_CONF_MTX.format(idx=clf.idx, is_open=is_open, is_exclusive=is_exclusive)
-            title = CLF_CONF_MTX_TITLE.format(idx=clf.idx)
-            ConfusionMatrixLogger(logger, conf_reporter, name=name, title=title)
+            _name = CLF_ACC.format(clf.idx, is_open, is_exclusive, is_test=True)
+            _label_gatherer = ClassifierLabelGatherer(is_exclusive, clf, source)
+            _prediction_reporter = ClassifierPredictionReporter(clf, source, is_open, is_exclusive)
+            ClassifierAccuracyLogger(clf, _name, logger, _label_gatherer, _prediction_reporter)
 
             if not is_exclusive:
-                clf_predictors[is_open].append(prediction_reporter)
+                clf_predictors[is_open].append(_prediction_reporter)
 
+    # log confusion matrices
+    classifier_confusion_reporters = []
+    for i, clf in enumerate(classifiers):
+        _pred_labels = clf.classes + [clf.other_label]
+        _is_open = True
+        _prediction_reporter = clf_predictors[_is_open][i]
+        _conf_reporter = RectangularConfusionMatrixReporter(_prediction_reporter, plain_label_gatherer,
+                                                            true_classes=classes, pred_classes=_pred_labels)
+        classifier_confusion_reporters.append(_conf_reporter)
+    titles = [str(clf.idx) for clf in classifiers]
+    StackedConfusionMatricesLogger(logger, classifier_confusion_reporters, CLF_CONF_MTX_UNI, CLF_CONF_MTX_UNI_TITLE,
+                                   titles=titles)
+
+    # report final predictions
     clf_open_prediction_reporters = clf_predictors[True]
     clf_closed_prediction_reporters = clf_predictors[False]
-    plain_label_gatherer = LabelGatherer(source)
     ctrl_outputs_reporter = ControllerOutputsReporter(source)
     givens_reporter = PredictionGivensReporter(classifiers, ctrl_outputs_reporter, ctrl_prediction_reporter,
                                                clf_open_prediction_reporters, clf_closed_prediction_reporters)

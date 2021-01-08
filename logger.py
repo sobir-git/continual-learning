@@ -1,6 +1,8 @@
 import collections
 from typing import Sequence, List
 
+import PIL.Image as PILImage
+import six
 import torch
 import wandb
 import numpy as np
@@ -185,17 +187,23 @@ class Logger:
         if commit:
             self.commit()
 
+    def log_image(self, name: str, image):
+        self.log({name: wandb.Image(image)})
+
     def log_heatmap(self, name, data, rows: List[str] = 'auto', columns: List[str] = 'auto', title=None, vmax=None,
                     vmin=None, color="light:g", linewidths=2, rows_label: str = None, columns_label: str = None):
         if self._image_heatmaps:
             fig, ax = plt.subplots()
             ax.set_title(title)
-            sns.heatmap(data, xticklabels=columns, yticklabels=rows, annot=True, vmax=vmax,
-                        linewidths=linewidths, cmap=sns.color_palette(color, as_cmap=True), vmin=vmin)
+            sns.heatmap(data, xticklabels=columns, yticklabels=rows, annot=False, vmax=vmax,
+                        linewidths=linewidths, cmap=sns.color_palette(color, as_cmap=True), vmin=vmin, square=True)
             plt.xlabel(columns_label)
             plt.ylabel(rows_label)
-            self.log({name: wandb.Image(fig)})
+            buf = six.BytesIO()
+            fig.savefig(buf, bbox_inches='tight')
             plt.close(fig)
+            image = PILImage.open(buf)
+            self.log_image(name, image)
         else:
             # Warning: this option is currently buggy because of wandb or plotly
             if vmax is not None or vmin is not None:
@@ -203,18 +211,31 @@ class Logger:
             fig = plotly_heatmap(data, rows, columns)
             self.log({name: fig})
 
-    def log_confusion_matrix(self, confmatrix, classnames, title='Confusion Matrix', name='conf_mtx', commit=False):
+    def log_confusion_matrix(self, confmatrix, labels, true_labels=None, pred_labels=None, title='Confusion Matrix',
+                             name='conf_mtx', commit=False):
         """According to sklearn:
         By definition a confusion matrix C is such that C_ij is equal to the number of observations known to be in
         group i and predicted to be in group j.
         """
-        assert classnames is not None
+
+        # get rows and columns
+        if labels is not None:
+            columns = rows = labels
+            assert true_labels is None and pred_labels is None, "'labels' is exclusive with true_labels and pred_labels"
+        else:
+            if true_labels is None or pred_labels is None:
+                raise ValueError("'true_labels' and 'pred_labels' both must be specified if not 'labels'")
+            rows = true_labels
+            columns = pred_labels
+
         if self.confusion_matrix_format == 'image':
             # https://seaborn.pydata.org/tutorial/color_palettes.html
-            self.log_heatmap(name, confmatrix, rows=classnames, columns=classnames, title=title, color='rocket',
+            self.log_heatmap(name, confmatrix, rows=rows, columns=columns, title=title, color='rocket',
                              linewidths=0, rows_label='y_true', columns_label='y_pred')
         else:
-            self.log({name: wandb_confusion_matrix(confmatrix, classnames, title=title)}, commit=commit)
+            if rows != columns:
+                raise ValueError('Rectangular confusion matrix is implemented with plotly yet.')
+            self.log({name: wandb_confusion_matrix(confmatrix, labels, title=title)}, commit=commit)
 
     def _log_accuracy_one(self, confmatrix, classnames, log_recalls):
         diag = _get_diagonal(confmatrix)
