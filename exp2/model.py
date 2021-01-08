@@ -306,8 +306,8 @@ class Model:
                 loss = val_reporter.get_average_loss()
             else:
                 loss = train_reporter.get_average_loss()
-                lr_scheduler.step(loss)
-                stopper.update(loss)
+            lr_scheduler.step(loss)
+            stopper.update(loss)
             self._train_classifier_epoch_end(epoch)
 
     def train_new_classifier(self, newset: PartialDataset, clf_memory: Memory, ctrl_memory, shared_memory: Memory):
