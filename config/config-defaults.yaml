@@ -35,6 +35,6 @@ class_order_seed: -1
 weight_decay: 1.0e-05
 update_classifiers: false
 update_scores: false
-datadir: ../data/
-logdir: ./logs/
+datadir: ../data
+logdir: ./logs
 download: false

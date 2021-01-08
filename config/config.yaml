@@ -3,10 +3,11 @@ shared_memory_size: 0
 clf_memory_size: 350
 ctrl_memory_size: 150
 ctrl:
-    lr: 0.001
-    min_lr: 0.00001
-    epochs: 100
+  lr: 0.001
+  min_lr: 0.00001
+  epochs: 100
 clf:
-    lr: 0.001
-    min_lr: 0.00001
-    epochs: 50
+  lr: 0.001
+  min_lr: 0.00001
+  epochs: 50
+download: true
