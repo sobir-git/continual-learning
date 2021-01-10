@@ -26,7 +26,6 @@ DOWNLOAD = True
 NUM_CLASSES = 20
 DEVICE = utils.get_default_device()
 
-
 mean, std, n_classes_in_whole_dataset, inp_size, in_channels = get_statistics(DATASET)
 train_augment, test_augment = get_augment_transforms(dataset=DATASET, inp_sz=32)
 train_transforms = torchvision.transforms.Compose(
@@ -41,7 +40,6 @@ trainset = PartialDataset.from_classes(train_source, classes)
 testset = PartialDataset.from_classes(test_source, classes)
 train_loader = DataLoader(trainset, batch_size=32, shuffle=True)
 test_loader = DataLoader(testset, batch_size=32, shuffle=True)
-
 
 net = simple_net(n_classes=len(classes))
 criterion = torch.nn.CrossEntropyLoss()
@@ -70,8 +68,9 @@ def save_model(model, path=MODELPATH):
     print("Saving model in", path)
     torch.save(model.state_dict(), path)
 
+
 def load_model(model, path=MODELPATH):
-    model.load_state_dict(torch.load(path))
+    model.get_state_dict(torch.load(path))
 
 
 for epoch in range(NUM_EPOCHS):
@@ -113,7 +112,6 @@ for epoch in range(NUM_EPOCHS):
         save_model(net)
         print('Exiting by early stopping.')
         break
-
 
 elapsed = (time.time() - start_time) / 60
 print(f'Total Training Time: {elapsed:.2f} min')

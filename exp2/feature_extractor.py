@@ -3,10 +3,10 @@ from typing import Iterable
 from torch import nn
 from torch.utils.data import DataLoader
 
-from exp2 import models
 from exp2.classifier import Classifier
 from exp2.model_state import ModelState, init_states
-from exp2.utils import load_model, split_model
+from exp2.models import model_mapping, url_mapping
+from exp2.utils import split_model, load_state_dict_from_url_or_path
 
 PRETRAINED = None
 
@@ -39,11 +39,22 @@ class FeatureExtractor(nn.Module):
             return self._feed_with_states(states)
 
 
+def load_pretrained(model_name):
+    # construct model
+    model_cls = model_mapping[model_name]
+    url = url_mapping[model_name]
+    if hasattr(model_cls, 'from_pretrained'):
+        return model_cls.from_pretrained(url)
+    state_dict = load_state_dict_from_url_or_path(url)
+    model = model_cls()
+    model.load_state_dict(state_dict)
+    return model
+
+
 def create_models(config, device) -> (FeatureExtractor, callable):
     global PRETRAINED
     if PRETRAINED is None:
-        PRETRAINED = models.simple_net(n_classes=20)
-    load_model(PRETRAINED, config.pretrained)
+        PRETRAINED = load_pretrained(config.pretrained)
     fe, head_constructor = split_model(config, PRETRAINED)
     fe = FeatureExtractor(config, fe, device)
     fe.eval()

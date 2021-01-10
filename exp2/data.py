@@ -181,7 +181,7 @@ def create_loader(config, dataset: PartialDataset) -> DataLoader:
     shuffle = True
     if len(dataset) == 0:  # in this case we don't shuffle because it causes an error in Dataloader code
         shuffle = False
-    return DataLoader(dataset, batch_size=config.batch_size, shuffle=shuffle)
+    return DataLoader(dataset, batch_size=config.batch_size, shuffle=shuffle, num_workers=config.num_workers)
 
 
 def _get_dataset(config, train: bool, transforms):
@@ -207,6 +207,8 @@ def prepare_data(config) -> CIData:
     n_classes_per_phase = config.n_classes_per_phase
     n_phases = config.n_phases
     mean, std, n_classes, inp_size, in_channels = get_statistics(config.dataset)
+    if config.resize_input:
+        inp_size = config.resize_input
     train_augment, test_augment = get_augment_transforms(dataset=config.dataset, inp_sz=inp_size)
     train_transforms = torchvision.transforms.Compose(
         train_augment + [torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(mean, std)])

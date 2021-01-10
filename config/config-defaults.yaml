@@ -28,7 +28,7 @@ val_size: 0.2
 balance_other_classsize: true
 balance_other_samplesize: true
 clone_head: false
-pretrained: exp2/simple_net.pty
+pretrained: 'simple_net_20_classes'
 split_pos: 10
 batch_size: 16
 class_order_seed: -1
@@ -38,3 +38,5 @@ update_scores: false
 datadir: ../data
 logdir: ./logs
 download: false
+resize_input: null
+num_workers: 2

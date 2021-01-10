@@ -2,6 +2,9 @@ dataset: CIFAR10
 shared_memory_size: 0
 clf_memory_size: 350
 ctrl_memory_size: 150
+split_pos: -1
+pretrained: 'efficientnet-b0'
+resize_input: 224
 ctrl:
   lr: 0.001
   min_lr: 0.00001

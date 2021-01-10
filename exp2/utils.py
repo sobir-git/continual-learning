@@ -4,8 +4,7 @@ from contextlib import contextmanager
 import numpy as np
 import torch
 from torch import nn
-
-from exp2.data import PartialDataset, create_loader
+from torch.hub import load_state_dict_from_url
 
 
 @torch.no_grad()
@@ -25,8 +24,6 @@ def split_model(config, model):
     It assumes the model is a sequential. It assumes last layer as the linear classification layer.
     Note: it does not clone the feature extractor.
     """
-    assert isinstance(model, nn.Sequential)
-
     back: nn.Sequential = model[:config.split_pos]
     head: nn.Sequential = model[config.split_pos:]
 
@@ -41,7 +38,7 @@ def split_model(config, model):
     del head[-1]
     in_features = clf_layer.in_features
 
-    def head_constructor(n_classes):
+    def head_constructor(n_classes: int):
         # replace the classification layer from the head with the one matching number of classes
         layer = nn.Linear(in_features=in_features, out_features=n_classes)
         newhead = copy.deepcopy(head)
@@ -53,8 +50,19 @@ def split_model(config, model):
     return back, head_constructor
 
 
-def load_model(model, path):
-    model.load_state_dict(torch.load(path))
+def uri_validator(x):
+    from urllib.parse import urlparse
+    try:
+        result = urlparse(x)
+        return all([result.scheme, result.netloc, result.path])
+    except:
+        return False
+
+
+def load_state_dict_from_url_or_path(path):
+    if uri_validator(path):
+        return load_state_dict_from_url(path)
+    return torch.load(path)
 
 
 @contextmanager

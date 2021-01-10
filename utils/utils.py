@@ -187,7 +187,7 @@ def load_pretrained_model(opt, model, logger, name='pretrained_model'):
     assert (os.path.isfile(filepath))
     logger.debug("=> loading checkpoint '{}'".format(filepath))
     checkpoint = torch.load(filepath, map_location=get_default_device())
-    model.load_state_dict(checkpoint['state_dict'])
+    model.get_state_dict(checkpoint['state_dict'])
     return model
 
 

@@ -22,7 +22,11 @@ def simple_net(n_classes=10):
         BatchNorm2d(64),
 
         Flatten(),
-        Linear(64 * 3 * 3, n_classes*2),
+        Linear(64 * 3 * 3, n_classes * 2),
         Tanh(),
-        Linear(n_classes*2, n_classes),
+        Linear(n_classes * 2, n_classes),
     )
+
+
+def simple_net_20_classes():
+    return simple_net(20)
