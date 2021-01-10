@@ -1,5 +1,6 @@
 import argparse
 import os
+from collections import OrderedDict
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--logdir', type=str, default='./logs')
@@ -21,8 +22,8 @@ def read_ids(file):
 
 
 # collect ids
-ids_in_file = {}
-for filename in os.listdir(folder):
+ids_in_file = OrderedDict()
+for filename in sorted(os.listdir(folder)):
     path = folder + '/' + filename
     if os.path.isfile(path) and filename.endswith('.txt'):
         ids = read_ids(path)
