@@ -1,3 +1,6 @@
+import os
+import random
+import string
 from typing import List, Iterable
 
 import numpy as np
@@ -5,14 +8,52 @@ import torch
 from torch import nn
 
 from exp2.model_state import ClassifierState, ModelState
-from utils import np_a_in_b
+from utils import np_a_in_b, get_console_logger
+
+console_logger = get_console_logger(__name__)
 
 
-class Classifier(nn.Module):
+class Checkpoint(nn.Module):
+    _min_val_loss = -float('inf')
+
+    def __init__(self, checkpoint_file=None):
+        super().__init__()
+        if checkpoint_file is None:
+            letters = string.ascii_lowercase + string.digits
+            self._checkpoint_file = ''.join(random.choice(letters) for _ in range(10)) + '.pt'
+        else:
+            self._checkpoint_file = checkpoint_file
+
+    def set_checkpoint_file(self, filename):
+        self._checkpoint_file = filename
+
+    def checkpoint(self, optimizer, val_loss):
+        """Checkpoint if val_loss is the minimum"""
+        if self._min_val_loss > val_loss:
+            d = {
+                'val_loss': val_loss,
+                'state_dict': self.state_dict(),
+                'optimizer': optimizer,
+            }
+            torch.save(d, self._checkpoint_file)
+
+    def load_best(self):
+        """Load if checkpoint exists."""
+        if not os.path.isfile(self._checkpoint_file):
+            return
+        d = torch.load(self._checkpoint_file)
+        self._min_val_loss = d['val_loss']
+        self.load_state_dict(d['state_dict'])
+        console_logger.debug('Loaded checkpoint %s, (from epoch %s)', self._checkpoint_file, d['epoch'])
+        return d['optimizer']
+
+
+class Classifier(Checkpoint, nn.Module):
     other_label = -1
+    _min_val_loss = float('inf')
 
     def __init__(self, config, net, classes, idx):
-        super().__init__()
+        super().__init__(checkpoint_file=config.logdir + '/' + f'classifier_{idx}.pt')
         self.net = net
         self.idx: int = idx
         self._cls_idx = {cls: i for i, cls in enumerate(classes)}

@@ -280,7 +280,7 @@ class Model:
     def _train_classifier_epoch_end(self, epoch):
         self.logger.commit()
 
-    def _train_classifier(self, classifier, train_loader, val_loader, criterion, optimizer):
+    def _train_classifier(self, classifier: Classifier, train_loader, val_loader, criterion, optimizer):
         """Train the classifier for a number of epochs.
         If val_loader is None, do not validate.
         """
@@ -304,11 +304,15 @@ class Model:
                 self._val_classifier(classifier, val_loader, criterion, source_reporter)
                 source_reporter.end()
                 loss = val_reporter.get_average_loss()
+                classifier.checkpoint(optimizer, loss)
             else:
                 loss = train_reporter.get_average_loss()
             lr_scheduler.step(loss)
             stopper.update(loss)
             self._train_classifier_epoch_end(epoch)
+
+        # load best checkpoint
+        classifier.load_best()
 
     def train_new_classifier(self, newset: PartialDataset, clf_memory: Memory, ctrl_memory, shared_memory: Memory):
         """Train a new classifier on the dataset. Optionally given otherset that contains
