@@ -353,22 +353,27 @@ class Model:
             tot = cf + ct + sh
 
             # handle a degenarate case
+            # if classifier memory and shared memory is zero, then there is nothing for the
+            # classifier as 'otherset', so we just return two empty datasets
             if cf + sh == 0:
                 otherset_tr = clf_memory.get_dataset(train=True)
                 otherset_val = clf_memory.get_dataset(train=False)
                 return otherset_tr, otherset_val
 
-            # start creating otherser_val, from ctrl_memory
+            # otherset validation is better not to takes share from classifier or shared memory
+            # so first we include all controller memory samples in this set (then we check if we
+            # need more validation data, which will come from classifier + shared memory
             otherset_val = ctrl_memory.get_dataset(train=False)
-
-            # leftover val_size, involves a little math
-            left_val_size = (val_size * tot - ct) / (cf + sh)
 
             # combine shared memory and classifier memory into a dataset
             otherset = shared_memory.get_dataset(train=True).mix(clf_memory.get_dataset(train=True))
 
+            # compute how much more validation samples we need
+            n_val_samples_left = tot * val_size - ct
+
             # if still need more validation data, get from shared + clf
-            if left_val_size > 0:
+            if n_val_samples_left > 0:
+                left_val_size = (n_val_samples_left) / (cf + sh)
                 otherset_tr, otherset_val2 = otherset.split(test_size=val_size)
                 otherset_val = otherset_val.mix(otherset_val2)
             else:

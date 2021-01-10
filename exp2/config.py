@@ -1,6 +1,13 @@
 import argparse
 from collections import defaultdict
 
+import yaml
+
+from logger import dict_deep_update
+from utils import get_console_logger
+
+console_logger = get_console_logger(__name__)
+
 
 def make_nested(d, subkeys, delim='_'):
     """Makes the dictionary nested (one level), for keys that start with one of the given subkeys.
@@ -19,10 +26,21 @@ def make_nested(d, subkeys, delim='_'):
     return dict(new_d)
 
 
+def load_configs(config_files):
+    config_dict = dict()
+    for path in config_files:
+        console_logger.info('Loading config %s', path)
+        with open(path) as f:
+            y = yaml.safe_load(f)
+            y = make_nested(y, ['clf', 'ctrl'])
+            dict_deep_update(config_dict, y)
+    return config_dict
+
+
 def parse_args(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--defaults', type=str, default='./config/config-defaults.yaml', help='Default config file')
-    parser.add_argument('--config', type=str, default='./config/config.yaml', help='Config file')
+    parser.add_argument('--configs', type=str, nargs='*', default='./config/config.yaml', help='Config file')
     parser.add_argument('--wandb_group', type=str, help='W&B group in experiments')
 
     # lr_choices = ['exp', 'step2', 'step3', 'step4', 'step5', 'poly1', 'poly2', 'poly3', 'poly4', 'const']

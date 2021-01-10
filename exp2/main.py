@@ -1,12 +1,12 @@
-import wandb
 import numpy as np
+import wandb
 
 import utils
-from exp2.config import parse_args, make_nested
+from exp2.config import parse_args, load_configs
 from exp2.data import prepare_data
 from exp2.memory import create_memory_storages, update_memories, log_total_memory_sizes
 from exp2.model import Model
-from logger import Logger, dict_deep_update
+from logger import Logger
 
 console_logger = utils.get_console_logger(name='main')
 
@@ -57,32 +57,14 @@ def run(config):
 
 if __name__ == '__main__':
     import os
-    import yaml
 
     args = parse_args()
-    default_config = dict()
-    if os.path.isfile(args.defaults):
-        console_logger.info('Loading config defaults: %s', args.defaults)
-        with open(args.defaults) as f:
-            y = yaml.safe_load(f)
-            default_config.update(y)
-
-    config = dict()
-    if os.path.isfile(args.config):
-        console_logger.info('Loading config: %s', args.config)
-        with open(args.config) as f:
-            y = yaml.safe_load(f)
-            config.update(y)
-    config = make_nested(config, ['clf', 'ctrl'])
-    default_config = make_nested(default_config, ['clf', 'ctrl'])
-
-    # update defaults
-    dict_deep_update(default_config, config)
-    final_config = default_config
+    config_files = [args.defaults] + args.configs
+    config_dict = load_configs(config_files)
 
     # init wandb and get its wrapped config
     group = args.wandb_group
-    wandb.init(project='exp2', group=group, config=final_config)
+    wandb.init(project='exp2', group=group, config=config_dict)
     config = wandb.config
 
     # create log directory

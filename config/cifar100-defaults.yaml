@@ -1,0 +1,14 @@
+dataset: CIFAR100
+n_phases: 10
+n_classes_per_phase: 10
+
+pretrained: 'efficientnet-b0'
+split_pos: -1
+resize_input: 224
+
+shared_memory_size: 0
+clf_memory_size: 1200
+ctrl_memory_size: 800
+
+download: true
+class_order_seed: 1

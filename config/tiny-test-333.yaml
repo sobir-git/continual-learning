@@ -7,3 +7,4 @@ class_order_seed: 1
 shared_memory_size: 0
 clf_memory_size: 100
 ctrl_memory_size: 100
+num_workers: 0

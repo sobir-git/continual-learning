@@ -1,3 +1,7 @@
+"""
+Sourced with modifications from: https://colab.research.google.com/github/pytorch/ignite/blob/master/examples/notebooks/EfficientNet_Cifar100_finetuning.ipynb
+"""
+
 import math
 from collections import OrderedDict
 
