@@ -1,6 +1,8 @@
+import pickle
 from typing import List
 
 import numpy as np
+import wandb
 from torch.utils.data import Dataset
 
 from exp2.data import PartialDataset
@@ -121,29 +123,50 @@ class Memory:
     def get_n_samples(self):
         return sum(len(ids) for ids in self._ids.values())
 
+    def get_state(self):
+        return {'ids': self._ids, 'max_size': self.max_size, 'scores': self._scores}
 
-def create_memory_storages(config, data):
-    """Return memory storages for controller and for classifiers."""
-    clf_memory_size = config.clf['memory_size']
-    ctrl_memory_size = config.ctrl['memory_size']
-    shared_memory_size = config.shared_memory_size
-    clf_memory = Memory(clf_memory_size, data.train_source, data.train_transform, data.test_transform)
-    ctrl_memory = Memory(ctrl_memory_size, data.train_source, data.train_transform, data.test_transform)
-    shared_memory = Memory(shared_memory_size, data.train_source, data.train_transform, data.test_transform)
-    return clf_memory, ctrl_memory, shared_memory
+    def load_state(self, state):
+        self._ids = state['ids']
+        self._scores = state['scores']
+        assert state['max_size'] == self.max_size
 
 
-def update_memories(dataset: PartialDataset, clf_memory: Memory, shared_memory: Memory):
-    # to prevent overlap we choose a splitting index
-    split_idx = int(len(dataset) * clf_memory.max_size / (clf_memory.max_size + shared_memory.max_size))
-    clf_memory.update(ids=dataset.ids[:split_idx], new_classes=dataset.classes)
-    shared_memory.update(ids=dataset.ids[split_idx:], new_classes=dataset.classes)
+class MemoryManager:
+    def __init__(self, config, data):
+        """Return memory storages for controller and for classifiers."""
+        clf_memory_size = config.clf['memory_size']
+        ctrl_memory_size = config.ctrl['memory_size']
+        shared_memory_size = config.shared_memory_size
+        self.clf_memory = Memory(clf_memory_size, data.train_source, data.train_transform, data.test_transform)
+        self.ctrl_memory = Memory(ctrl_memory_size, data.train_source, data.train_transform, data.test_transform)
+        self.shared_memory = Memory(shared_memory_size, data.train_source, data.train_transform, data.test_transform)
+        self.artifact = wandb.Artifact(f'memory-ids-{wandb.run.id}', 'ids')
 
+    def get_memories(self):
+        return self.clf_memory, self.ctrl_memory, self.shared_memory
 
-def log_total_memory_sizes(clf_memory: Memory, ctrl_memory: Memory, shared_memory: Memory):
-    ct = ctrl_memory.get_n_samples()
-    cf = clf_memory.get_n_samples()
-    sh = shared_memory.get_n_samples()
-    tot = ct + cf + sh
-    console_logger.info('Memory sizes (classifier, controller, shared): %s + %s + %s = %s', cf, ct, sh, tot)
-    return tot
+    def update_memories(self, dataset: PartialDataset, phase: int):
+        # to prevent overlap we choose a splitting index
+        split_idx = int(
+            len(dataset) * self.clf_memory.max_size / (self.clf_memory.max_size + self.shared_memory.max_size))
+        self.clf_memory.update(ids=dataset.ids[:split_idx], new_classes=dataset.classes)
+        self.shared_memory.update(ids=dataset.ids[split_idx:], new_classes=dataset.classes)
+        with self.artifact.new_file(f'ids-{phase}.pkl', 'wb') as f:
+            pickle.dump({
+                'clf': self.clf_memory.get_state(),
+                'shared': self.shared_memory.get_state(),
+                'ctrl': self.ctrl_memory.get_state()
+            }, f)
+        self.log_total_memory_sizes()
+
+    def log_total_memory_sizes(self):
+        ct = self.ctrl_memory.get_n_samples()
+        cf = self.clf_memory.get_n_samples()
+        sh = self.shared_memory.get_n_samples()
+        tot = ct + cf + sh
+        console_logger.info('Memory sizes (classifier, controller, shared): %s + %s + %s = %s', cf, ct, sh, tot)
+        return tot
+
+    def on_training_end(self):
+        wandb.run.log_artifact(self.artifact)

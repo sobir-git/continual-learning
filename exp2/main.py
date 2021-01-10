@@ -5,7 +5,7 @@ import yaml
 import utils
 from exp2.config import parse_args, load_configs
 from exp2.data import prepare_data
-from exp2.memory import create_memory_storages, update_memories, log_total_memory_sizes
+from exp2.memory import MemoryManager
 from exp2.model import Model
 from logger import Logger
 
@@ -17,7 +17,8 @@ def run(config):
     console_logger.info('config:' + str(config))
     # prepare data
     data = prepare_data(config)
-    clf_memory, ctrl_memory, shared_memory = create_memory_storages(config, data)
+    memory_manager = MemoryManager(config, data)
+    clf_memory, ctrl_memory, shared_memory = memory_manager.get_memories()
     model = Model(config, logger=logger)
     logger.log({'class_order': data.class_order})
 
@@ -43,7 +44,7 @@ def run(config):
 
         # update classifier and share memory
         console_logger.info('Updating classifier and shared memory')
-        update_memories(trainset, clf_memory=clf_memory, shared_memory=shared_memory)
+        memory_manager.update_memories(trainset, phase=phase)
 
         # train a new controller
         console_logger.info('Training a new controller')
@@ -53,7 +54,9 @@ def run(config):
         console_logger.info('Testing the model')
         model.phase_end()
         model.test(cumul_testset)
-        log_total_memory_sizes(clf_memory, ctrl_memory, shared_memory)
+
+    # inform phase end
+    memory_manager.on_training_end()
 
 
 if __name__ == '__main__':
@@ -65,7 +68,7 @@ if __name__ == '__main__':
 
     # init wandb and get its wrapped config
     group = args.wandb_group
-    wandb.init(project='exp2', group=group, config=config_dict)
+    wandb.init(project='exp2', group=group, config=config_dict, job_type='clf-training')
     config = wandb.config
 
     # extend logging directory with the current unique run name
@@ -76,6 +79,8 @@ if __name__ == '__main__':
     config_art = wandb.Artifact('project-source', type='configs')
     for file in config_files:
         config_art.add_file(file)
+    with config_art.new_file('combined-config.yaml') as f:
+        f.write(config_yaml)
     wandb.run.use_artifact(config_art)
 
     # create log directory

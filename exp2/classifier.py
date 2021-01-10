@@ -5,12 +5,21 @@ from typing import List, Iterable
 
 import numpy as np
 import torch
+import wandb
 from torch import nn
 
 from exp2.model_state import ClassifierState, ModelState
 from utils import np_a_in_b, get_console_logger
 
 console_logger = get_console_logger(__name__)
+
+
+def upload_classifier(classifier):
+    checkpoint_file = classifier.get_checkpoint_file()
+    if not os.path.exists(checkpoint_file):
+        artifact = wandb.Artifact(f'classifier-{classifier.idx}-{wandb.run.id}', type='model')
+        artifact.add_file(checkpoint_file)
+        wandb.log_artifact(artifact)
 
 
 class Checkpoint(nn.Module):
@@ -24,16 +33,14 @@ class Checkpoint(nn.Module):
         else:
             self._checkpoint_file = checkpoint_file
 
-    def set_checkpoint_file(self, filename):
-        self._checkpoint_file = filename
-
-    def checkpoint(self, optimizer, val_loss):
+    def checkpoint(self, optimizer, val_loss, epoch):
         """Checkpoint if val_loss is the minimum"""
         if self._min_val_loss > val_loss:
             d = {
                 'val_loss': val_loss,
                 'state_dict': self.state_dict(),
                 'optimizer': optimizer,
+                'epoch': epoch
             }
             torch.save(d, self._checkpoint_file)
 
@@ -46,6 +53,9 @@ class Checkpoint(nn.Module):
         self.load_state_dict(d['state_dict'])
         console_logger.debug('Loaded checkpoint %s, (from epoch %s)', self._checkpoint_file, d['epoch'])
         return d['optimizer']
+
+    def get_checkpoint_file(self):
+        return self._checkpoint_file
 
 
 class Classifier(Checkpoint, nn.Module):

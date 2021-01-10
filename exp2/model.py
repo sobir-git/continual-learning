@@ -4,7 +4,7 @@ import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
-from exp2.classifier import Classifier
+from exp2.classifier import Classifier, upload_classifier
 from exp2.controller import Controller, create_controller
 from exp2.data import create_loader, PartialDataset
 from exp2.feature_extractor import create_models
@@ -304,7 +304,7 @@ class Model:
                 self._val_classifier(classifier, val_loader, criterion, source_reporter)
                 source_reporter.end()
                 loss = val_reporter.get_average_loss()
-                classifier.checkpoint(optimizer, loss)
+                classifier.checkpoint(optimizer, loss, epoch)
             else:
                 loss = train_reporter.get_average_loss()
             lr_scheduler.step(loss)
@@ -313,6 +313,9 @@ class Model:
 
         # load best checkpoint
         classifier.load_best()
+
+        # upload as artifact
+        upload_classifier(classifier)
 
     def train_new_classifier(self, newset: PartialDataset, clf_memory: Memory, ctrl_memory, shared_memory: Memory):
         """Train a new classifier on the dataset. Optionally given otherset that contains
