@@ -1,5 +1,6 @@
 import numpy as np
 import wandb
+import yaml
 
 import utils
 from exp2.config import parse_args, load_configs
@@ -66,6 +67,16 @@ if __name__ == '__main__':
     group = args.wandb_group
     wandb.init(project='exp2', group=group, config=config_dict)
     config = wandb.config
+
+    # extend logging directory with the current unique run name
+    config.update({'logdir': os.path.join(config.logdir, wandb.run.name)}, allow_val_change=True)
+
+    # upload config files
+    config_yaml = yaml.dump(config_dict)
+    config_art = wandb.Artifact('project-source', type='configs')
+    for file in config_files:
+        config_art.add_file(file)
+    wandb.run.use_artifact(config_art)
 
     # create log directory
     os.makedirs(config.logdir, exist_ok=True)

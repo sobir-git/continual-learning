@@ -35,4 +35,4 @@ datadir: ../data
 logdir: ./logs
 download: false
 resize_input: null
-num_workers: 2
+num_workers: 0
