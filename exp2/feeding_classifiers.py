@@ -125,8 +125,8 @@ def get_classifier_outputs(classifiers, loader, output, cls_labels, clf_labels):
 console_logger.info('Gathering training set outputs')
 for epoch in range(args.epochs):
     console_logger.info('Epoch %s / %s', epoch, args.epochs)
-    get_classifier_outputs(classifiers, trainloader, clf_outputs['train'][epoch], labels['train']['class'],
-                           labels['train']['classifier'])
+    get_classifier_outputs(classifiers, trainloader, clf_outputs['train'][epoch], labels['train']['class'][epoch],
+                           labels['train']['classifier'][epoch])
 
 # gather classifier outputs for the valset and testset
 for split, loader in zip(['test', 'val'],
