@@ -17,7 +17,7 @@ console_logger = get_console_logger(__name__)
 def upload_classifier(classifier):
     checkpoint_file = classifier.get_checkpoint_file()
     if os.path.exists(checkpoint_file):
-        console_logger.info(f'uploading classifier {classifier.id}')
+        console_logger.info(f'uploading classifier {classifier.idx}')
         artifact = wandb.Artifact(f'classifier-{classifier.idx}-{wandb.run.id}', type='model')
         artifact.add_file(checkpoint_file)
         wandb.log_artifact(artifact)
