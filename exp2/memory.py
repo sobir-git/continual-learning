@@ -1,4 +1,5 @@
 import pickle
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -160,6 +161,16 @@ class MemoryManager:
             }, f)
         self.log_total_memory_sizes()
 
+    def load_from_artifact(self, artifact: wandb.Artifact, phase: int):
+        folder = Path(artifact.download())
+        with open(folder / f'ids-{phase}.pkl', 'rb') as f:
+            d = pickle.load(f)
+
+        for pref in ('clf', 'ctrl', 'shared'):
+            state = d[pref]
+            mem: Memory = getattr(self, pref + '_memory')
+            mem.load_state(state)
+
     def log_total_memory_sizes(self):
         ct = self.ctrl_memory.get_n_samples()
         cf = self.clf_memory.get_n_samples()
@@ -169,4 +180,5 @@ class MemoryManager:
         return tot
 
     def on_training_end(self):
+        console_logger.info('Uploading memory indices')
         wandb.run.log_artifact(self.artifact)

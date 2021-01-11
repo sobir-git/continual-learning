@@ -46,15 +46,18 @@ class Checkpoint(nn.Module):
             torch.save(d, self._checkpoint_file)
             self._min_val_loss = val_loss
 
+    def load_from_checkpoint(self, checkpoint_file):
+        d = torch.load(checkpoint_file)
+        self._min_val_loss = d['val_loss']
+        self.load_state_dict(d['state_dict'])
+        console_logger.debug('Loaded checkpoint %s, (from epoch %s)', checkpoint_file, d['epoch'])
+        return d['optimizer']
+
     def load_best(self):
         """Load if checkpoint exists."""
         if not os.path.isfile(self._checkpoint_file):
             return
-        d = torch.load(self._checkpoint_file)
-        self._min_val_loss = d['val_loss']
-        self.load_state_dict(d['state_dict'])
-        console_logger.debug('Loaded checkpoint %s, (from epoch %s)', self._checkpoint_file, d['epoch'])
-        return d['optimizer']
+        return self.load_from_checkpoint(self._checkpoint_file)
 
     def get_checkpoint_file(self):
         return self._checkpoint_file
