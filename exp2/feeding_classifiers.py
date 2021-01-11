@@ -8,6 +8,7 @@ import wandb
 
 import argparse
 
+from exp2.controller import Controller
 from exp2.data import prepare_data, create_loader
 from exp2.feature_extractor import create_models
 from exp2.memory import MemoryManager
@@ -67,16 +68,32 @@ trainset = memory_manager.ctrl_memory.get_dataset(train=True).mix(memory_manager
 trainset, valset = trainset.split(test_size=config.val_size)
 testset = data.get_phase_data(phase=args.phase)[2]
 
-# classifier outputs for training set
-clf_train_outputs = torch.zeros(args.epochs, len(classifiers), len(trainset),
-                                n_class_per_phase + config.other, dtype=torch.float32,
-                                device=device)  # (epoch, clf, sample, outputs)
-clf_val_outputs = torch.zeros(len(classifiers), len(valset),
-                              n_class_per_phase + config.other, dtype=torch.float32,
-                              device=device)  # (clf, sample, outputs)
-clf_test_outputs = torch.zeros(len(classifiers), len(testset),
-                               n_class_per_phase + config.other, dtype=torch.float32,
-                               device=device)  # (clf, sample, outputs)
+clf_outputs = {
+    'train': torch.zeros(args.epochs, len(classifiers), len(trainset),
+                         n_class_per_phase + config.other, dtype=torch.float32,
+                         device=device),  # (epoch, clf, sample, outputs)
+    'val': torch.zeros(len(classifiers), len(valset),
+                       n_class_per_phase + config.other, dtype=torch.float32,
+                       device=device),  # (clf, sample, outputs)
+    'test': torch.zeros(len(classifiers), len(testset),
+                        n_class_per_phase + config.other, dtype=torch.float32,
+                        device=device),  # (clf, sample, outputs)
+}
+
+labels = {
+    'train': {
+        'class': torch.empty(args.epochs, len(trainset), dtype=torch.int32),
+        'classifier': torch.empty(args.epochs, len(trainset), dtype=torch.int32)
+    },
+    'val': {
+        'class': torch.empty(len(valset), dtype=torch.int32),
+        'classifier': torch.empty(len(valset), dtype=torch.int32)
+    },
+    'test': {
+        'class': torch.empty(len(testset), dtype=torch.int32),
+        'classifier': torch.empty(len(testset), dtype=torch.int32)
+    },
+}
 
 config.batch_size = args.batch_size
 trainloader = create_loader(config, trainset)
@@ -87,41 +104,44 @@ console_logger.info('trainset size: %d', len(trainset))
 console_logger.info('validation size: %d', len(valset))
 console_logger.info('test size: %d', len(testset))
 
+# load a raw controller just to map class labels to classifiers
+controller = Controller(config, None, classifiers)
+
+
+def get_classifier_outputs(classifiers, loader, output, cls_labels, clf_labels):
+    i = 0
+    for inputs, labels, ids in loader:
+        inputs = inputs.to(device)
+        bsize = inputs.size(0)
+        features = feature_extractor(inputs)
+        for j, clf in enumerate(classifiers):
+            output[j, i:i + bsize] = clf(features).cpu()
+        cls_labels[i:i + bsize] = labels
+        clf_labels[i:i + bsize] = controller.group_labels(labels)
+        i += bsize
+
+
 # gather classifier outputs for the trainset
 console_logger.info('Gathering training set outputs')
 for epoch in range(args.epochs):
     console_logger.info('Epoch %s / %s', epoch, args.epochs)
-    i = 0
-    for inputs, labels, ids in trainloader:
-        inputs = inputs.to(device)
-        features = feature_extractor(inputs)
-        bsize = features.size(0)
-        for j, clf in enumerate(classifiers):
-            clf_train_outputs[epoch, j, i:i + bsize] = clf(features).cpu()
-        i += bsize
+    get_classifier_outputs(classifiers, trainloader, clf_outputs['train'][epoch], labels['train']['class'],
+                           labels['train']['classifier'])
 
 # gather classifier outputs for the valset and testset
-for tensor, loader in zip([clf_test_outputs, clf_val_outputs],
-                          [testloader, valloader]):
-    console_logger.info(f'Gathering {["testing", "validation"][loader is valloader]} set outputs')
-    i = 0
-    for inputs, labels, ids in loader:
-        inputs = inputs.to(device)
-        features = feature_extractor(inputs)
-        bsize = features.size(0)
-        for j, clf in enumerate(classifiers):
-            tensor[j, i:i + bsize] = clf(features).cpu()
-        i += bsize
+for split, loader in zip(['test', 'val'],
+                         [testloader, valloader]):
+    console_logger.info(f'Gathering {["testing", "validation"][split == "val"]} set outputs')
+    get_classifier_outputs(classifiers, loader, clf_outputs[split], labels[split]['class'], labels[split]['classifier'])
 
 # upload artifacts
 console_logger.info("Uploading artifacts")
 artifact = wandb.Artifact(f'classifier-outputs-{args.phase}-{wandb.run.id}', 'classifier_outputs')
 
-for split in ['train', 'val', 'test']:
-    tensorname = f'clf_{split}_outputs'
-    tensor = globals()[tensorname]
+with artifact.new_file('clf_outputs.pkl', 'wb') as f:
+    pickle.dump(clf_outputs, f)
 
-    with artifact.new_file(tensorname + '.pkl', 'wb') as f:
-        pickle.dump(tensor, f)
+with artifact.new_file('labels.pkl', 'wb') as f:
+    pickle.dump(labels, f)
 
 wandb.log_artifact(artifact)
