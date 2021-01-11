@@ -70,14 +70,11 @@ testset = data.get_phase_data(phase=args.phase)[2]
 
 clf_outputs = {
     'train': torch.zeros(args.epochs, len(classifiers), len(trainset),
-                         n_class_per_phase + config.other, dtype=torch.float32,
-                         device=device),  # (epoch, clf, sample, outputs)
+                         n_class_per_phase + config.other, dtype=torch.float32),  # (epoch, clf, sample, outputs)
     'val': torch.zeros(len(classifiers), len(valset),
-                       n_class_per_phase + config.other, dtype=torch.float32,
-                       device=device),  # (clf, sample, outputs)
+                       n_class_per_phase + config.other, dtype=torch.float32),  # (clf, sample, outputs)
     'test': torch.zeros(len(classifiers), len(testset),
-                        n_class_per_phase + config.other, dtype=torch.float32,
-                        device=device),  # (clf, sample, outputs)
+                        n_class_per_phase + config.other, dtype=torch.float32),  # (clf, sample, outputs)
 }
 
 labels = {
