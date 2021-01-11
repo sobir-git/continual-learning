@@ -41,6 +41,14 @@ def traverse_dict(d, skip_fn=lambda d: False, pref=None):
             yield key, val
 
 
+def assure_subdict(s, d):
+    """Check whether dictionary d has all keys that s has, recursively."""
+    for k in s:
+        assert k in d, f'Key {k} not present in d'
+        if isinstance(s[k], dict):
+            assure_subdict(s[k], d[k])
+
+
 def dict_deep_update(d, u):
     """
     Deep version of d.update(u). Updates in place.

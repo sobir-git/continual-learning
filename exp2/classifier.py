@@ -43,6 +43,7 @@ class Checkpoint(nn.Module):
                 'epoch': epoch
             }
             torch.save(d, self._checkpoint_file)
+            self._min_val_loss = val_loss
 
     def load_best(self):
         """Load if checkpoint exists."""

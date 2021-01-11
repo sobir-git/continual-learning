@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import yaml
 
-from logger import dict_deep_update
+from logger import dict_deep_update, assure_subdict
 from utils import get_console_logger
 
 console_logger = get_console_logger(__name__)
@@ -27,12 +27,17 @@ def make_nested(d, subkeys, delim='_'):
 
 
 def load_configs(config_files):
+    """Load configs on top of each other, overriding one another.
+    Also assure that the base config has every key that subsequent configs have.
+    """
     config_dict = dict()
     for path in config_files:
         console_logger.info('Loading config %s', path)
         with open(path) as f:
             y = yaml.safe_load(f)
             y = make_nested(y, ['clf', 'ctrl'])
+            if config_dict:
+                assure_subdict(y, config_dict)
             dict_deep_update(config_dict, y)
     return config_dict
 
