@@ -23,7 +23,10 @@ def run(config):
     logger.log({'class_order': data.class_order})
 
     # here comes the training algorithm
+    do_train_controller = config.phase is None
+    # phases start with 1, classifier indices start with 0 (phase - 1)
     for phase in range(1, config.n_phases + 1):
+        is_active_phase = config.phase is None or config.phase == phase
         console_logger.info(f'== Starting phase {phase} ==')
         logger.pin('phase', phase)
         model.phase_start(phase)
@@ -37,23 +40,30 @@ def run(config):
         left_ids = np.setdiff1d(trainset.ids, added_ids)
         trainset = trainset.subset(left_ids)
 
-        # train a new classifier on new samples
-        console_logger.info('Training a new classifier')
-        model.train_new_classifier(trainset, clf_memory=clf_memory, ctrl_memory=ctrl_memory,
-                                   shared_memory=shared_memory)
+        if is_active_phase:
+            # train a new classifier on new samples
+            console_logger.info('Training a new classifier')
+            model.train_new_classifier(trainset, clf_memory=clf_memory, ctrl_memory=ctrl_memory,
+                                       shared_memory=shared_memory)
 
         # update classifier and share memory
         console_logger.info('Updating classifier and shared memory')
         memory_manager.update_memories(trainset, phase=phase)
 
-        # train a new controller
-        console_logger.info('Training a new controller')
-        model.train_a_new_controller(ctrl_memory=ctrl_memory, shared_memory=shared_memory)
+        if is_active_phase:
+            model.create_new_controller()
 
-        # test the model
-        console_logger.info('Testing the model')
+        if do_train_controller:  # training a controller doesn't make sense if training only a single specific phase
+            # train a new controller
+            console_logger.info('Training a new controller')
+            model.train_controller(ctrl_memory=ctrl_memory, shared_memory=shared_memory)
+
+        if is_active_phase:
+            # test the model
+            console_logger.info('Testing the model')
+            dataset = cumul_testset if config.phase is None else testset
+            model.test(dataset)
         model.phase_end()
-        model.test(cumul_testset)
 
     # inform phase end
     memory_manager.on_training_end()

@@ -41,3 +41,4 @@ torch:
   num_workers: 3
   pin_memory: false
   non_blocking: true
+phase: null  # run a particular phase

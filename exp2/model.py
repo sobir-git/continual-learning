@@ -105,7 +105,7 @@ class Model:
 
     def _create_classifier(self, classes) -> Classifier:
         """Create a new classifier and add it. Then return it."""
-        idx = len(self.classifiers)
+        idx = self.phase - 1
         classifier = self._classifier_constructor(classes, idx=idx)
         # add new class labels to classifiers mapping
         self._classes.extend(classes)
@@ -140,10 +140,10 @@ class Model:
             return None
         return self.controller.idx
 
-    def _create_new_controller(self) -> Controller:
+    def create_new_controller(self) -> Controller:
         """Create and assign the new controller.
         The index assigned to the controller will be the current phase."""
-        idx = self.phase
+        idx = self.phase - 1
         controller = create_controller(self.config, idx, self.classifiers, device=self.device)
         self.controller = controller
         return controller
@@ -192,10 +192,9 @@ class Model:
     def _train_a_new_controller_end(self):
         pass
 
-    def train_a_new_controller(self, ctrl_memory: Memory, shared_memory: Memory):
+    def train_controller(self, ctrl_memory: Memory, shared_memory: Memory):
         """Create a new controller and train it. It will replace the current controller with the new one."""
         config = self.config
-        self._create_new_controller()
         # create combined dataset
         dataset = ctrl_memory.get_dataset(train=True).mix(shared_memory.get_dataset(train=True))
         optimizer = self.controller.get_optimizer()
