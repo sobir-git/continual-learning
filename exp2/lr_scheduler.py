@@ -22,7 +22,7 @@ class ExponentialLR(sch.ExponentialLR):
 class StepLR(sch.StepLR):
     def __init__(self, config, optimizer):
         n_parts = int(config['lr_scheduler'][-1])
-        step_size = config['epochs'] // n_parts
+        step_size = math.ceil(config['epochs'] / n_parts)
         gamma = compute_gamma(config['min_lr'], config['lr'], n_parts - 1)
         super(StepLR, self).__init__(optimizer, step_size, gamma)
 
