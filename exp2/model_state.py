@@ -3,6 +3,7 @@ from typing import Dict, TYPE_CHECKING, Iterable
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 if TYPE_CHECKING:
     from exp2.classifier import Classifier
@@ -73,8 +74,8 @@ class ModelState:
         return self.labels.size(0)
 
 
-def init_states(loader, device) -> Iterable[ModelState]:
+def init_states(loader: DataLoader, device) -> Iterable[ModelState]:
     for inputs, labels, ids in loader:
         labels_np = labels.numpy()
-        inputs, labels = inputs.to(device), labels.to(device)
+        inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
         yield ModelState(ids, inputs, labels=labels, labels_np=labels_np)
