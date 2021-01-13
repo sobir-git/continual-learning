@@ -67,6 +67,8 @@ def create_models(config, device) -> (FeatureExtractor, callable):
         """idx: the index assigned to the classifier"""
         n_classes = len(classes)
         net = head_constructor(n_classes=n_classes + config.other)
+        if config.torch['half']:
+            net = net.half()
         return Classifier(config, net, classes, idx).to(device)
 
     return fe, classifier_constructor

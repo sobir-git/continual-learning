@@ -150,5 +150,7 @@ def create_controller(config, idx, classifiers, device) -> Controller:
             net = MLPController(config, idx, classifiers)
         else:
             net = LinearController(config, idx, classifiers)
+    if config.torch.half:
+        net = net.half()
     net = net.to(device)
     return net
