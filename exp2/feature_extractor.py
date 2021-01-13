@@ -16,6 +16,7 @@ class FeatureExtractor(nn.Module):
         super().__init__()
         self.device = device
         self.net = net
+        self.config = config
 
     def forward(self, inputs):
         return self.net(inputs)
@@ -31,7 +32,7 @@ class FeatureExtractor(nn.Module):
     def feed(self, loader: DataLoader = None, state: ModelState = None, states: Iterable[ModelState] = None):
         """Feed the samples to the feature extractor."""
         if loader:
-            states = init_states(loader, self.device)
+            states = init_states(self.config, loader, self.device)
             return self.feed(states=states)
         elif state:
             return self._feed_with_state(state)

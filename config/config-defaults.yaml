@@ -36,6 +36,8 @@ datadir: ../data
 logdir: ./logs
 download: false
 resize_input: null
-num_workers: 3
-pin_memory: true
 update_classifiers: false
+torch:
+  num_workers: 3
+  pin_memory: false
+  non_blocking: true

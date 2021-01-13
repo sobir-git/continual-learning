@@ -1,10 +1,11 @@
 dataset: TinyCIFAR10
-n_phases: 5
-n_classes_per_phase: 2
+n_phases: 3
+n_classes_per_phase: 3
 ctrl_epochs: 10
 clf_epochs: 20
 class_order_seed: 1
 shared_memory_size: 0
 clf_memory_size: 100
 ctrl_memory_size: 100
-num_workers: 0
+torch:
+  num_workers: 0

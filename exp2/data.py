@@ -239,7 +239,7 @@ def create_loader(config, main_dataset: PartialDataset, memoryset: PartialDatase
         assert len(memoryset) == 0, "Got main dataset empty but memory non-empty"
         return DataLoader(main_dataset, batch_size=config.batch_size, shuffle=False)
 
-    common_kwargs = {'num_workers': config.num_workers, 'pin_memory': config.pin_memory}
+    common_kwargs = {'num_workers': config.torch['num_workers'], 'pin_memory': config.torch['pin_memory']}
     if memoryset is not None:
         concatenated_dataset = main_dataset.concat(memoryset)
         if config.batch_memory_samples > 0:

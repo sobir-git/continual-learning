@@ -425,7 +425,7 @@ class Model:
     @torch.no_grad()
     def _feed_everything(self, loader: DataLoader) -> Iterable[ModelState]:
         """Feed everything (controller, clasifiers) and return generator of ModelState"""
-        states = init_states(loader, self.device)
+        states = init_states(self.config, loader, self.device)
         for state in states:
             state = self.feature_extractor.feed(state=state)
             self.controller.feed(state=state)
