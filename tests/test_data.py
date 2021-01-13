@@ -42,7 +42,7 @@ def test_dual_batch_sampler():
 
 
 def test_create_loader():
-    config = SimpleNamespace(batch_memory_samples=2, batch_size=4, num_workers=0)
+    config = SimpleNamespace(batch_memory_samples=2, batch_size=4, num_workers=0, pin_memory=False)
     source = CIFAR10('../data')
     transform = ToTensor()
     main_ids = np.fromiter(range(10), dtype=int) * 10  # 0, 10, ..., 90
