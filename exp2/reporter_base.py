@@ -257,6 +257,29 @@ class IncrementalMetricLogger(MetricLogger, Concatenator):
         return self.extract_values(content)
 
 
+class LossLogger(MetricLogger, EndableReporter):
+
+    def __post_init__(self):
+        super(LossLogger, self).__post_init__()
+        self._losses = []
+        self._batch_sizes = []
+
+    def update(self, parent: ParentReporter, content):
+        super(LossLogger, self).update(parent, content)
+        loss, batch_size = self.extract_loss_and_batch_size(content)
+        self._losses.append(loss)
+        self._batch_sizes.append(batch_size)
+
+    @abstractmethod
+    def extract_loss_and_batch_size(self, content) -> torch.Tensor:
+        ...
+
+    def compute_final_value(self):
+        losses = torch.stack(self._losses).detach().cpu()
+        batch_sizes = torch.tensor(self._batch_sizes)
+        return (losses * batch_sizes).sum() / batch_sizes.sum()
+
+
 class LabelGathererBase(Concatenator):
     @abstractmethod
     def extract_labels(self, content):

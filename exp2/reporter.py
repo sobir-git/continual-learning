@@ -122,15 +122,13 @@ class ClassifierBaseReporter(BasicReporter):
         return state.get_classifier_state(self.classifier)
 
 
-class ClassifierLossLogger(ClassifierBaseReporter, IncrementalMetricLogger):
+class ClassifierLossLogger(ClassifierBaseReporter, LossLogger):
     def __init__(self, classifier, source: SourceReporter, name: str, logger: Logger):
         super().__init__(classifier=classifier, parents=[source], name=name, logger=logger)
 
-    def extract_values(self, state: 'ModelState'):
+    def extract_loss_and_batch_size(self, state: 'ModelState'):
         clf_state = self.get_classifier_state(state)
-        loss, batch_size = clf_state.loss, clf_state.batchsize
-        losses = torch.full((batch_size,), loss.detach())  # we want average sample loss
-        return losses
+        return clf_state.loss, clf_state.batchsize
 
 
 class ClassifierPredictionReporter(ClassifierBaseReporter, PredictionReporter):
