@@ -65,9 +65,14 @@ def get_class_weights(config, newset, otherset=None):
 
 def get_classification_criterion(config, newset, otherset, device):
     """Create classification criterion given the new classes samples (newset) and old class samples (otherset)."""
-    weight = get_class_weights(config, newset, otherset)
-    weight = weight.to(device)
-    criterion = nn.CrossEntropyLoss(weight=weight)
+    # if batch_memory_samples are specified positive integer, then we don't apply class weights, we go with dual
+    # dataloader, that is to include a certain number of memory samples in each batch
+    if config.batch_memory_samples > 0:
+        criterion = nn.CrossEntropyLoss()
+    else:
+        weight = get_class_weights(config, newset, otherset)
+        weight = weight.to(device)
+        criterion = nn.CrossEntropyLoss(weight=weight)
     return criterion
 
 
@@ -406,12 +411,11 @@ class Model:
         optimizer = self._create_classifier_optimizer(classifier)
 
         # create final training set, combination of new and other categories
-        trainset = newset_tr.mix(otherset_tr) if otherset_tr else newset_tr
-        train_loader = create_loader(self.config, trainset)
+        train_loader = create_loader(self.config, newset_tr, otherset_tr if len(otherset_tr) > 0 else None)
 
         # create final validation set, combination of new and other categories
-        valset = newset_val.mix(otherset_val) if otherset_val else newset_val
-        val_loader = create_loader(self.config, valset)
+        val_loader = create_loader(self.config, newset_val, otherset_val if len(otherset_val) > 0 else None,
+                                   shuffle=False)
 
         # start training
         self._train_new_classifier_start()
@@ -428,3 +432,7 @@ class Model:
             for clf in self.classifiers:
                 clf.feed(state=state)
             yield state
+
+    # def on_training_end(self):
+    #     # upload stuff
+    #

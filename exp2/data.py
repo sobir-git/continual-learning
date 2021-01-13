@@ -1,9 +1,11 @@
-from typing import Tuple, List, Callable
+import itertools
+from typing import Tuple, List, Callable, Sequence
 
 import numpy as np
+import torch
 import torchvision
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, RandomSampler, Sampler, SequentialSampler, BatchSampler
 from torchvision.transforms import Compose
 
 from utils import np_a_in_b, get_console_logger
@@ -19,7 +21,8 @@ class PartialDataset(Dataset):
 
     def __init__(self, source: Dataset, ids: np.ndarray, train: bool, train_transform: Compose,
                  test_transform: Compose, classes: List[int]):
-        assert len(train_transform.transforms) >= len(test_transform.transforms)
+        if isinstance(train_transform, Compose) and isinstance(test_transform, Compose):
+            assert len(train_transform.transforms) >= len(test_transform.transforms)
         self.train_transform = train_transform
         self.test_transform = test_transform
         self.source = source
@@ -78,25 +81,6 @@ class PartialDataset(Dataset):
             labels = np.array(labels)
         return labels
 
-    def split_by_sizes(self, *sizes):
-        sizes = list(sizes)
-        if -1 not in sizes:
-            assert sum(sizes) <= len(self.ids)
-        assert sizes.count(-1) in [0, 1]
-
-        if -1 in sizes:
-            sizes[sizes.index(-1)] = len(self.ids) - sum(sizes)
-
-        # shuffle, then split ids
-        ids = self.ids.copy()
-        np.random.shuffle(ids)
-        i = 0
-        for size in sizes:
-            part = ids[i:i + size]
-            PartialDataset(self.source, ids=part, train=self._train, )
-
-            i += size
-
     def split(self, test_size=None, train_size=None):
         """Split into train and test set. Also set test transforms for the testset.
         if test_size == 0, then testset will still be a dataset but empty.
@@ -120,12 +104,15 @@ class PartialDataset(Dataset):
                                    test_transform=self.test_transform, classes=self._classes)
         return self_train, self_test
 
-    def mix(self, otherset):
-        """Create a dataset of mixture of samples. Other properties are inherited from self.
-        Warning: it assumes that both datasets have different sets of samples.
+    def concat(self, otherset: 'PartialDataset'):
+        """Concatenate with other dataset and produce a new one.
+        The ids are just concatenated. Other properties are inherited from self.
+        Warning: it assumes that both datasets have different sets of samples (ids).
         Train and test transforms of otherset will be ignored.
         The resulting dataset will have train/test transforms and train mode as self.
         """
+        assert self.source == otherset.source, "Both datasets should have same sources."
+
         # create list of classes from both dataset, the list starts with classes of self in the same order
         classes = list(self.classes)
         for cls in otherset.classes:
@@ -138,6 +125,9 @@ class PartialDataset(Dataset):
         return self.__class__(source, ids, train, train_transform=self.train_transform,
                               test_transform=test_transform, classes=classes)
 
+    # alias for concat
+    mix = concat
+
     def subset(self, ids):
         """Return a new dataset with samples of those ids"""
         return PartialDataset(source=self.source, ids=ids, train=self._train, train_transform=self.train_transform,
@@ -148,7 +138,8 @@ class PartialDataset(Dataset):
 
 
 class CIData:
-    def __init__(self, train_source, test_source, class_order, n_classes_per_phase, n_phases, train_transform,
+    def __init__(self, train_source: Dataset, test_source: Dataset, class_order: List[int], n_classes_per_phase: int,
+                 n_phases: int, train_transform,
                  test_transform):
         """Note: Assumes the train source and test source without tranforms."""
         self.class_order = class_order
@@ -177,11 +168,98 @@ class CIData:
         return self.data[phase - 1]
 
 
-def create_loader(config, dataset: PartialDataset) -> DataLoader:
-    shuffle = True
-    if len(dataset) == 0:  # in this case we don't shuffle because it causes an error in Dataloader code
-        shuffle = False
-    return DataLoader(dataset, batch_size=config.batch_size, shuffle=shuffle, num_workers=config.num_workers)
+class ContinuousRandomSampler(Sampler[int]):
+    indices: Sequence[int]
+
+    def __init__(self, indices, generator=None) -> None:
+        self.indices = indices
+        self.generator = generator
+
+    def get_perm(self):
+        perm = torch.randperm(len(self.indices), generator=self.generator)
+        return perm.tolist()
+
+    def __iter__(self):
+        i = 0
+        perm = self.get_perm()
+        while True:
+            if i == len(perm):
+                perm = self.get_perm()
+                i = 0
+            yield self.indices[perm[i]]
+            i += 1
+
+    def __len__(self):
+        return float('inf')
+
+
+class ContinuousSequentialSampler(Sampler[int]):
+    indices = Sequence[int]
+
+    def __init__(self, indices) -> None:
+        self.indices = indices
+
+    def __iter__(self):
+        return itertools.cycle(self.indices)
+
+    def __len__(self):
+        return float('inf')
+
+
+class DualBatchSampler(BatchSampler):
+    def __init__(self, main_sampler, continuous_random_sampler: ContinuousRandomSampler, sizes: Tuple[int, int],
+                 drop_last=False):
+        self.sizes = sizes
+        self.continuous_random_sampler = continuous_random_sampler
+        self.main_sampler = main_sampler
+        self.drop_last = drop_last
+
+    def __len__(self):
+        if self.drop_last:
+            return len(self.main_sampler) // self.sizes[0]  # type: ignore
+        else:
+            return (len(self.main_sampler) + self.sizes[0] - 1) // self.sizes[0]  # type: ignore
+
+    def __iter__(self):
+        batch = []
+        it_continuous_random_sampler = iter(self.continuous_random_sampler)
+        for idx in self.main_sampler:
+            batch.append(idx)
+            if len(batch) == self.sizes[0]:
+                # add from the other sampler
+                batch.extend(next(it_continuous_random_sampler) for _ in range(self.sizes[1]))
+                yield batch
+                batch = []
+        if len(batch) > 0 and not self.drop_last:
+            yield batch
+
+
+def create_loader(config, main_dataset: PartialDataset, memoryset: PartialDataset = None, shuffle=True):
+    if len(main_dataset) == 0:  # in this case we don't shuffle because it causes an error in Dataloader code
+        assert len(memoryset) == 0, "Got main dataset empty but memory non-empty"
+        return DataLoader(main_dataset, batch_size=config.batch_size, shuffle=False)
+
+    common_kwargs = {'num_workers': config.num_workers}
+    if memoryset is not None:
+        concatenated_dataset = main_dataset.concat(memoryset)
+        if config.batch_memory_samples > 0:
+            if len(memoryset) == 0:
+                raise ValueError('Memory dataset is empty while config.batch_memory_samples > 0')
+            sampler_cls = [SequentialSampler, RandomSampler][shuffle]
+            main_sampler = sampler_cls(main_dataset)
+            sampler_cls = [ContinuousSequentialSampler, ContinuousRandomSampler][shuffle]
+            offset = len(main_dataset)
+            memory_sampler = sampler_cls(np.fromiter(range(len(memoryset)), dtype=int) + offset)
+            batch_sizes = (config.batch_size - config.batch_memory_samples, config.batch_memory_samples)
+            batch_sampler = DualBatchSampler(main_sampler=main_sampler, continuous_random_sampler=memory_sampler,
+                                             sizes=batch_sizes)
+
+            return DataLoader(concatenated_dataset, batch_sampler=batch_sampler, **common_kwargs)
+        else:  # we just merge two datasets
+            return DataLoader(main_dataset.concat(memoryset), batch_size=config.batch_size, shuffle=shuffle,
+                              **common_kwargs)
+    else:  # no memory
+        return DataLoader(main_dataset, batch_size=config.batch_size, shuffle=shuffle, **common_kwargs)
 
 
 def _get_dataset(config, train: bool, transforms):
@@ -216,7 +294,7 @@ def prepare_data(config) -> CIData:
         test_augment + [torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(mean, std)])
     train_source = _get_dataset(config, train=True, transforms=None)
     test_source = _get_dataset(config, train=False, transforms=None)
-    class_order = np.array(list(range(n_classes)))
+    class_order = list(range(n_classes))
     if config.class_order_seed != -1:
         _rs = np.random.RandomState(config.class_order_seed)
         _rs.shuffle(class_order)

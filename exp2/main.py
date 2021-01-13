@@ -76,7 +76,7 @@ if __name__ == '__main__':
 
     # upload config files
     config_yaml = yaml.dump(config_dict)
-    config_art = wandb.Artifact('project-source', type='configs')
+    config_art = wandb.Artifact(f'config-{wandb.run.id}', type='configs')
     for file in config_files:
         config_art.add_file(file)
     with config_art.new_file('combined-config.yaml') as f:
