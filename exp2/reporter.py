@@ -129,7 +129,7 @@ class ClassifierLossLogger(ClassifierBaseReporter, IncrementalMetricLogger):
     def extract_values(self, state: 'ModelState'):
         clf_state = self.get_classifier_state(state)
         loss, batch_size = clf_state.loss, clf_state.batchsize
-        losses = np.full(batch_size, loss.item())  # we want average sample loss
+        losses = torch.full((batch_size,), loss.detach())  # we want average sample loss
         return losses
 
 

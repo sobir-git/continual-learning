@@ -240,8 +240,6 @@ class IncrementalMetricLogger(MetricLogger, Concatenator):
 
     def __init__(self, reduce_func: Union[str, Callable] = 'mean', *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if reduce_func == 'mean':
-            reduce_func = np.mean
         self.reduce_func = reduce_func
 
     @abstractmethod
@@ -250,7 +248,10 @@ class IncrementalMetricLogger(MetricLogger, Concatenator):
 
     def compute_final_value(self):
         concatenated = Concatenator.compute_final_content(self)
-        return self.reduce_func(concatenated)
+        reduce_func = self.reduce_func
+        if reduce_func == 'mean':
+            reduce_func = torch.mean if isinstance(concatenated, torch.Tensor) else np.mean
+        return reduce_func(concatenated)
 
     def extract_tensor(self, content) -> Tc:
         return self.extract_values(content)
