@@ -59,6 +59,8 @@ def create_models(config, device) -> (FeatureExtractor, callable):
     fe, head_constructor = split_model(config, PRETRAINED)
     fe = FeatureExtractor(config, fe, device)
     fe.eval()
+    if config.torch['half']:
+        fe = fe.half()
     fe = fe.to(device)
 
     def classifier_constructor(classes, idx=None) -> Classifier:

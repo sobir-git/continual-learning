@@ -78,5 +78,7 @@ def init_states(config, loader: DataLoader, device) -> Iterable[ModelState]:
     non_blocking = config.torch['non_blocking']
     for inputs, labels, ids in loader:
         labels_np = labels.numpy()
+        if config.torch['half']:
+            inputs = inputs.half()
         inputs, labels = inputs.to(device, non_blocking=non_blocking), labels.to(device, non_blocking=non_blocking)
         yield ModelState(ids, inputs, labels=labels, labels_np=labels_np)
