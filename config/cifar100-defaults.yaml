@@ -12,3 +12,8 @@ ctrl_memory_size: 800
 
 download: true
 class_order_seed: 1
+
+num_workers: 3
+batch_size: 32
+batch_memory_samples: 16
+pin_memory: false

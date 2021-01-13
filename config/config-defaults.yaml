@@ -38,3 +38,4 @@ download: false
 resize_input: null
 num_workers: 3
 pin_memory: true
+update_classifiers: false

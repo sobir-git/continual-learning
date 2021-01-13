@@ -385,12 +385,15 @@ def create_test_reporter(config, logger: Logger, source, classifiers: List[Class
 
     # gather predictions and log classifier accuracies
     clf_predictors = defaultdict(list)  # (open|closed: bool) -> List[ClassifierPredictionReporter]
-    for clf in classifiers:
+    for j, clf in enumerate(classifiers):
         for is_open, is_exclusive in itertools.product([True, False], repeat=2):
-            _name = CLF_ACC.format(clf.idx, is_open, is_exclusive, is_test=True)
-            _label_gatherer = ClassifierLabelGatherer(is_exclusive, clf, source)
             _prediction_reporter = ClassifierPredictionReporter(clf, source, is_open, is_exclusive)
-            ClassifierAccuracyLogger(clf, _name, logger, _label_gatherer, _prediction_reporter)
+
+            # log accuracy only for all only if config.update_classifiers is True, otherwise only for the last one
+            if config.update_classifiers or j == len(classifiers) - 1:
+                _name = CLF_ACC.format(clf.idx, is_open, is_exclusive, is_test=True)
+                _label_gatherer = ClassifierLabelGatherer(is_exclusive, clf, source)
+                ClassifierAccuracyLogger(clf, _name, logger, _label_gatherer, _prediction_reporter)
 
             if not is_exclusive:
                 clf_predictors[is_open].append(_prediction_reporter)
