@@ -12,7 +12,7 @@ def compute_gamma(min, max, times):
 
 class ExponentialLR(sch.ExponentialLR):
     def __init__(self, cfg, optimizer):
-        gamma = compute_gamma(cfg.min_lr, cfg.lr, cfg.epochs - 1)
+        gamma = compute_gamma(cfg['min_lr'], cfg['lr'], cfg['epochs'] - 1)
         super(ExponentialLR, self).__init__(optimizer, gamma)
 
     def step(self, *args):

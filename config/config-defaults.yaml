@@ -28,8 +28,8 @@ balance_other_samplesize: true
 clone_head: false
 pretrained: 'simple_net_20_classes'
 split_pos: 10
-batch_size: 16
-batch_memory_samples: 8
+batch_size: 32
+batch_memory_samples: 16
 class_order_seed: -1
 weight_decay: 1.0e-05
 datadir: ../data
