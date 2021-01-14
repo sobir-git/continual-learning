@@ -52,7 +52,7 @@ class SqueezeExcitation(nn.Module):
         self.reduce_expand = nn.Sequential(
             nn.Conv2d(inplanes, se_planes,
                       kernel_size=1, stride=1, padding=0, bias=True),
-            Swish(),
+            MemoryEfficientSwish(),
             nn.Conv2d(se_planes, inplanes,
                       kernel_size=1, stride=1, padding=0, bias=True),
             nn.Sigmoid()
@@ -80,7 +80,7 @@ class MBConv(nn.Module):
                 nn.Conv2d(inplanes, expand_planes,
                           kernel_size=1, stride=1, padding=0, bias=False),
                 nn.BatchNorm2d(expand_planes, momentum=0.01, eps=1e-3),
-                Swish()
+                MemoryEfficientSwish()
             )
             inplanes = expand_planes
 
@@ -90,7 +90,7 @@ class MBConv(nn.Module):
                       padding=kernel_size // 2, groups=expand_planes,
                       bias=False),
             nn.BatchNorm2d(expand_planes, momentum=0.01, eps=1e-3),
-            Swish()
+            MemoryEfficientSwish()
         )
 
         self.squeeze_excitation = SqueezeExcitation(expand_planes, se_planes)
@@ -184,7 +184,7 @@ class EfficientNet(nn.Module):
         self.stem = nn.Sequential(
             nn.Conv2d(3, list_channels[0], kernel_size=3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(list_channels[0], momentum=0.01, eps=1e-3),
-            Swish()
+            MemoryEfficientSwish()
         )
 
         # Define MBConv blocks
@@ -227,7 +227,7 @@ class EfficientNet(nn.Module):
             nn.Conv2d(list_channels[-2], list_channels[-1],
                       kernel_size=1, bias=False),
             nn.BatchNorm2d(list_channels[-1], momentum=0.01, eps=1e-3),
-            Swish(),
+            MemoryEfficientSwish(),
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
             nn.Dropout(p=dropout_rate),
@@ -273,6 +273,10 @@ class EfficientNet(nn.Module):
 if __name__ == '__main__':
     url = 'http://storage.googleapis.com/public-models/efficientnet-b0-08094119.pth'
     model = EfficientNet.from_pretrained(url)
-    batch = torch.rand(8, 3, 32, 32)
+    batch = torch.rand(8, 3, 224, 224)
     outputs = model(batch)
     outputs1 = model[:-1](batch)
+    outputs2 = model[:-2](batch)
+    print('outputs:', outputs.shape)
+    print('outputs1:', outputs1.shape)
+    print('outputs2:', outputs2.shape)
