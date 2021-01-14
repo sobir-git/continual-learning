@@ -35,7 +35,14 @@ class Controller(nn.Module):
         return len(self.classifiers)
 
     def get_optimizer(self):
-        return optim.SGD(params=self.parameters(), lr=self.config.ctrl['lr'], momentum=0.9)
+        opt_name = self.config.ctrl['optimizer']
+        common = dict(params=self.parameters(), lr=self.config.ctrl['lr'])
+        if opt_name == 'SGD':
+            return optim.SGD(**common, momentum=0.9)
+        elif opt_name == 'Adam':
+            return optim.Adam(**common)
+        else:
+            raise ValueError("Optimizer should be one of 'SGD' or 'Adam'")
 
     def forward(self, input):
         return self.net(input)

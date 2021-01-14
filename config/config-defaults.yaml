@@ -11,6 +11,7 @@ clf:
   lr: 0.01
   lr_scheduler: poly1
   min_lr: 1.0e-05
+  optimizer: SGD
 ctrl:
   epochs: 200
   epochs_tol: 20
@@ -20,6 +21,7 @@ ctrl:
   lr_scheduler: poly1
   min_lr: 1.0e-05
   pos: after
+  optimizer: SGD
 lr_decay: 0.25
 lr_patience: 3
 val_size: 0.2

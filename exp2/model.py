@@ -100,8 +100,14 @@ class Model:
         return self._classes
 
     def _create_classifier_optimizer(self, classifier):
-        config = self.config
-        return optim.SGD(classifier.parameters(), lr=config.clf['lr'], momentum=0.9, weight_decay=config.weight_decay)
+        opt_name = self.config.clf['optimizer']
+        common = dict(params=classifier.parameters(), lr=self.config.clf['lr'])
+        if opt_name == 'SGD':
+            return optim.SGD(**common, momentum=0.9, weight_decay=self.config.weight_decay)
+        elif opt_name == 'Adam':
+            return optim.Adam(**common)
+        else:
+            raise ValueError("Optimizer should be one of 'SGD' or 'Adam'")
 
     def _create_classifier(self, classes) -> Classifier:
         """Create a new classifier and add it. Then return it."""
