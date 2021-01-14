@@ -236,7 +236,7 @@ class DualBatchSampler(BatchSampler):
 
 def create_loader(config, main_dataset: PartialDataset, memoryset: PartialDataset = None, shuffle=True):
     if len(main_dataset) == 0:  # in this case we don't shuffle because it causes an error in Dataloader code
-        assert len(memoryset) == 0, "Got main dataset empty but memory non-empty"
+        assert memoryset is None or len(memoryset) == 0, "Got main dataset empty but memory non-empty"
         return DataLoader(main_dataset, batch_size=config.batch_size, shuffle=False)
 
     common_kwargs = {'num_workers': config.torch['num_workers'], 'pin_memory': config.torch['pin_memory']}

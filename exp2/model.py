@@ -255,7 +255,8 @@ class Model:
     def _train_classifier_epoch(self, classifier: Classifier, loader, criterion, optimizer, epoch,
                                 reporter: SourceReporter):
         """Train classifier for one epoch."""
-        self.set_train(True)
+        self.set_train(False)
+        classifier.train()
         for mstate in self.feature_extractor.feed(loader):
             clf_state = classifier.feed(state=mstate)
             outputs, labels, labels_np = clf_state.outputs, clf_state.labels, clf_state.parent.labels_np
@@ -267,7 +268,10 @@ class Model:
             clf_state.epoch = epoch
             reporter.update(clf_state)
 
+    @torch.no_grad()
     def _val_classifier(self, classifier: Classifier, loader, criterion, reporter: SourceReporter):
+        self.set_train(False)
+
         for mstate in self.feature_extractor.feed(loader):
             clf_state = classifier.feed(state=mstate)
             outputs, labels, labels_np = clf_state.outputs, clf_state.labels, clf_state.labels_np
@@ -433,7 +437,3 @@ class Model:
             for clf in self.classifiers:
                 clf.feed(state=state)
             yield state
-
-    # def on_training_end(self):
-    #     # upload stuff
-    #
