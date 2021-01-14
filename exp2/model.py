@@ -410,10 +410,12 @@ class Model:
         optimizer = self._create_classifier_optimizer(classifier)
 
         # create final training set, combination of new and other categories
-        train_loader = create_loader(self.config, newset_tr, otherset_tr if len(otherset_tr) > 0 else None)
+        train_loader = create_loader(self.config, newset_tr,
+                                     otherset_tr if otherset_tr is not None and len(otherset_tr) > 0 else None)
 
         # create final validation set, combination of new and other categories
-        val_loader = create_loader(self.config, newset_val, otherset_val if len(otherset_val) > 0 else None,
+        val_loader = create_loader(self.config, newset_val,
+                                   otherset_val if otherset_val is not None and len(otherset_val) > 0 else None,
                                    shuffle=False)
 
         # start training
