@@ -31,7 +31,7 @@ class FeatureExtractor(nn.Module):
 
     def feed(self, loader: DataLoader = None, state: ModelState = None, states: Iterable[ModelState] = None):
         """Feed the samples to the feature extractor."""
-        if loader:
+        if loader is not None:
             states = init_states(self.config, loader, self.device)
             return self.feed(states=states)
         elif state:

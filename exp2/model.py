@@ -203,6 +203,8 @@ class Model:
         config = self.config
         # create combined dataset
         dataset = ctrl_memory.get_dataset(train=True).mix(shared_memory.get_dataset(train=True))
+        if len(dataset) == 0:
+            raise ValueError('Controller memory + shared memory is empty. Cannot train controller.')
         optimizer = self.controller.get_optimizer()
         trainset, valset = dataset.split(test_size=config.val_size)
         train_loader = create_loader(config, trainset)
