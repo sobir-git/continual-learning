@@ -64,11 +64,12 @@ def load_config_from_run(run: Run):
 
 
 device = get_default_device()
-console_logger = get_console_logger()
+console_logger = get_console_logger(__name__)
 run = wandb.init(job_type='feeding_classifiers', project='classifier-outputs')
 api = wandb.Api()
 past_run: Run = api.run(args.run)
 config = load_config_from_run(past_run)
+console_logger.info(f'Source run name: {past_run.name}')
 
 # prepare data
 data = prepare_data(config)
