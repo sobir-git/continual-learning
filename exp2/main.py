@@ -50,19 +50,16 @@ def run(config):
         console_logger.info('Updating classifier and shared memory')
         memory_manager.update_memories(trainset, phase=phase)
 
-        if is_active_phase:
-            model.create_new_controller()
-
         if do_train_controller:  # training a controller doesn't make sense if training only a single specific phase
             # train a new controller
+            model.create_new_controller()
             console_logger.info('Training a new controller')
             model.train_controller(ctrl_memory=ctrl_memory, shared_memory=shared_memory)
 
-        if is_active_phase:
+        if config.phase is None or phase == config.n_phases:
             # test the model
             console_logger.info('Testing the model')
-            dataset = cumul_testset if config.phase is None else testset
-            model.test(dataset)
+            model.test(cumul_testset)
         model.phase_end()
 
     # inform phase end

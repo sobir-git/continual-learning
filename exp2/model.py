@@ -249,7 +249,8 @@ class Model:
         """
         self.set_train(False)
         source_reporter = SourceReporter()
-        create_test_reporter(self.config, self.logger, source_reporter, self.classifiers, self.controller, self.classes)
+        create_test_reporter(self.config, self.logger, source_reporter, self.classifiers, self.controller,
+                             dataset.classes)
         loader = create_loader(self.config, dataset)
 
         for mstate in self._feed_everything(loader):
@@ -439,7 +440,8 @@ class Model:
         states = init_states(self.config, loader, self.device)
         for state in states:
             state = self.feature_extractor.feed(state=state)
-            self.controller.feed(state=state)
+            if self.controller is not None:
+                self.controller.feed(state=state)
             for clf in self.classifiers:
                 clf.feed(state=state)
             yield state

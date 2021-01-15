@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import List, Iterable, Union
 
 import numpy as np
@@ -44,8 +45,9 @@ class Controller(nn.Module):
         else:
             raise ValueError("Optimizer should be one of 'SGD' or 'Adam'")
 
+    @abstractmethod
     def forward(self, input):
-        return self.net(input)
+        ...
 
     def get_predictions(self, outputs) -> np.ndarray:
         if outputs.size(0) == 0:

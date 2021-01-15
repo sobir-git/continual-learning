@@ -367,16 +367,14 @@ def create_test_reporter(config, logger: Logger, source, classifiers: List[Class
         source:
         classifiers:
         controller:
-
-    Returns:
-
     """
-    ctrl_prediction_reporter = ControllerPredictionReporter(source)
-    clf_names = [clf.idx for clf in controller.classifiers]
-    ctrl_label_gatherer = ControllerLabelGatherer(source)
-    ctrl_confusion_reporter = ConfusionMatrixReporter(ctrl_prediction_reporter, ctrl_label_gatherer)
-    ControllerConfusionMatrixLogger(logger, ctrl_confusion_reporter, clf_names)
-    ControllerAccuracyLogger(logger, ctrl_label_gatherer, ctrl_prediction_reporter, CTRL_ACC)
+    if controller is not None:
+        ctrl_prediction_reporter = ControllerPredictionReporter(source)
+        clf_names = [clf.idx for clf in controller.classifiers]
+        ctrl_label_gatherer = ControllerLabelGatherer(source)
+        ctrl_confusion_reporter = ConfusionMatrixReporter(ctrl_prediction_reporter, ctrl_label_gatherer)
+        ControllerConfusionMatrixLogger(logger, ctrl_confusion_reporter, clf_names)
+        ControllerAccuracyLogger(logger, ctrl_label_gatherer, ctrl_prediction_reporter, CTRL_ACC)
 
     ids_gatherer = IdsGatherer(source)
     _output_file = config.logdir + '/' + 'test_ids.txt'
@@ -398,7 +396,7 @@ def create_test_reporter(config, logger: Logger, source, classifiers: List[Class
             if not is_exclusive:
                 clf_predictors[is_open].append(_prediction_reporter)
 
-    # log confusion matrices
+    # log classifier confusion matrices
     classifier_confusion_reporters = []
     for i, clf in enumerate(classifiers):
         _pred_labels = clf.classes + [clf.other_label]
@@ -412,18 +410,19 @@ def create_test_reporter(config, logger: Logger, source, classifiers: List[Class
                                    titles=titles)
 
     # report final predictions
-    clf_open_prediction_reporters = clf_predictors[True]
-    clf_closed_prediction_reporters = clf_predictors[False]
-    ctrl_outputs_reporter = ControllerOutputsReporter(source)
-    givens_reporter = PredictionGivensReporter(classifiers, ctrl_outputs_reporter, ctrl_prediction_reporter,
-                                               clf_open_prediction_reporters, clf_closed_prediction_reporters)
-    algorithms = [cls() for cls in Predictor.__subclasses__()]
-    for algorithm in algorithms:
-        final_prediction_reporter = FinalPredictionReporter(givens_reporter, algorithm)
-        acc_name = FINAL_ACC.format(name=algorithm.name)
-        AccuracyLogger(logger, plain_label_gatherer, final_prediction_reporter, acc_name)
-        final_confusion = ConfusionMatrixReporter(final_prediction_reporter, plain_label_gatherer, classes)
-        name = FINAL_CONF_MTX.format(name=algorithm.name)
-        title = FINAL_CONF_MTX_TITLE.format(name=algorithm.name)
-        ConfusionMatrixLogger(logger, final_confusion, name=name, title=title)
+    if controller is not None:
+        clf_open_prediction_reporters = clf_predictors[True]
+        clf_closed_prediction_reporters = clf_predictors[False]
+        ctrl_outputs_reporter = ControllerOutputsReporter(source)
+        givens_reporter = PredictionGivensReporter(classifiers, ctrl_outputs_reporter, ctrl_prediction_reporter,
+                                                   clf_open_prediction_reporters, clf_closed_prediction_reporters)
+        algorithms = [cls() for cls in Predictor.__subclasses__()]
+        for algorithm in algorithms:
+            final_prediction_reporter = FinalPredictionReporter(givens_reporter, algorithm)
+            acc_name = FINAL_ACC.format(name=algorithm.name)
+            AccuracyLogger(logger, plain_label_gatherer, final_prediction_reporter, acc_name)
+            final_confusion = ConfusionMatrixReporter(final_prediction_reporter, plain_label_gatherer, classes)
+            name = FINAL_CONF_MTX.format(name=algorithm.name)
+            title = FINAL_CONF_MTX_TITLE.format(name=algorithm.name)
+            ConfusionMatrixLogger(logger, final_confusion, name=name, title=title)
     return source
