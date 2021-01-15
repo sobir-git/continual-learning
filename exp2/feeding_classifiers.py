@@ -35,13 +35,16 @@ def aslist(s: Sequence):
     return list(s)
 
 
-def get_all_run_artifacts(run: Run, mode='used'):
+def get_all_run_artifacts(run: Run, mode='used', declare_used=True):
     if mode == 'used':
         artifacts = run.used_artifacts()
     else:
         artifacts = run.logged_artifacts()
     artifacts = [api.artifact(f'{run.entity}/{run.project}/{art.name}') for art in artifacts]
     artifacts_dict = {art.name: art for art in artifacts}
+    if declare_used:
+        for art in artifacts:
+            wandb.use_artifact(art)
     return artifacts_dict
 
 
