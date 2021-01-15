@@ -1,7 +1,7 @@
 import pickle
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Sequence
+from typing import Sequence, List
 
 import torch
 import numpy as np
@@ -12,6 +12,7 @@ import argparse
 
 from wandb.apis.public import Run
 
+from exp2.classifier import Classifier
 from exp2.controller import Controller
 from exp2.data import prepare_data, create_loader
 from exp2.feature_extractor import create_models
@@ -136,7 +137,9 @@ controller = Controller(config, None, classifiers)
 
 
 @torch.no_grad()
-def get_classifier_outputs(classifiers, loader, output, cls_labels, clf_labels):
+def get_classifier_outputs(classifiers: List[Classifier], loader, output, cls_labels, clf_labels):
+    assert all(not clf.training for clf in classifiers)
+    assert not feature_extractor.training
     i = 0
     for inputs, labels, ids in loader:
         inputs = inputs.to(device)
@@ -164,7 +167,7 @@ for split, loader in zip(['test', 'val'],
 
 # upload artifacts
 console_logger.info("Uploading artifacts")
-artifact = wandb.Artifact(f'classifier-outputs-{args.phase}-{wandb.run.id}', 'classifier_outputs',
+artifact = wandb.Artifact(f'classifier-outputs-{args.phase}-{past_run.id}', 'classifier_outputs',
                           metadata={'dataset': config.dataset, 'source_run': args.run, 'phase': args.phase,
                                     'epochs': args.epochs})
 
@@ -184,3 +187,4 @@ with artifact.new_file('config.yaml', 'w') as f:
     yaml.dump(config.as_dict(), f)
 
 wandb.log_artifact(artifact)
+console_logger.info(f'Logged classifier outputs to artifact {artifact.name}')
