@@ -51,7 +51,7 @@ class Checkpoint(nn.Module):
         self._min_val_loss = d['val_loss']
         self.load_state_dict(d['state_dict'])
         console_logger.debug('Loaded checkpoint %s, (from epoch %s)', checkpoint_file, d['epoch'])
-        return d['optimizer']
+        return d
 
     def load_best(self):
         """Load if checkpoint exists."""
