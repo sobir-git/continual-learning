@@ -46,15 +46,25 @@ class Memory:
                               test_transform=self.test_transform,
                               classes=self.get_classes())
 
-    def update(self, ids: np.ndarray, new_classes: List[int], scores: np.ndarray = None):
+    def update(self, ids: np.ndarray, new_classes: List[int], scores: np.ndarray = None, max_size=None):
         """ Update memory with new classes. If 'scores' is None, assign equal scores.
+        If max_size is specified, the memory will be treated to have only that much size, so reductions and
+        additions of samples will be done according to that.
+
+        Args:
+            max_size (int): the effective maxsize, should be no more than self.max_size
         """
+        if max_size is None:
+            max_size = self.max_size
+        else:
+            assert max_size <= self.max_size
+
         labels = PartialDataset.get_labels(self.source)[ids]
         assert set(labels).issubset(new_classes)
 
         existing_classes = self.get_classes()
-        per_class = int(self.max_size / (len(new_classes) + len(existing_classes)))
-        residuals = self.max_size - per_class * (len(existing_classes) + len(new_classes))
+        per_class = int(max_size / (len(new_classes) + len(existing_classes)))
+        residuals = max_size - per_class * (len(existing_classes) + len(new_classes))
 
         # reduce existing classes
         for cls in existing_classes:
@@ -74,7 +84,7 @@ class Memory:
             residuals -= 1
 
         # make sure we don't exceed the limit
-        self._assert_maxsize()
+        self._assert_maxsize(max_size)
 
         # handle degenerate case
         if len(added_ids) == 0:
@@ -117,9 +127,11 @@ class Memory:
         self._scores[cls] = scores[sorted_idx]
         return added_ids
 
-    def _assert_maxsize(self):
+    def _assert_maxsize(self, max_size=None):
+        if max_size is None:
+            max_size = self.max_size
         size = self.get_n_samples()
-        assert size <= self.max_size, f'memory size > maxsize ({size} > {self.max_size})'
+        assert size <= max_size, f'memory size > maxsize ({size} > {max_size})'
 
     def get_n_samples(self):
         return sum(len(ids) for ids in self._ids.values())

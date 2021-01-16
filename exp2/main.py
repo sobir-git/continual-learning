@@ -36,7 +36,10 @@ def run(config):
 
         # add samples to ctrl_memory, and remove those from trainset
         console_logger.info('Updating controller memory')
-        added_ids = ctrl_memory.update(trainset.ids, new_classes=trainset.classes)
+        # if it is the first phase, controller memory takes away half of its size, because that much will be left
+        # before it really trains in the next phase
+        max_size = ctrl_memory.max_size if phase > 1 else ctrl_memory.max_size // 2
+        added_ids = ctrl_memory.update(trainset.ids, new_classes=trainset.classes, max_size=max_size)
         left_ids = np.setdiff1d(trainset.ids, added_ids)
         trainset = trainset.subset(left_ids)
 
