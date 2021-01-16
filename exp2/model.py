@@ -264,6 +264,7 @@ class Model:
     def _train_classifier_epoch(self, classifier: Classifier, loader, criterion, optimizer, epoch,
                                 reporter: SourceReporter):
         """Train classifier for one epoch."""
+        assert isinstance(loader.dataset, PartialDataset) and loader.dataset.is_train()
         self.set_train(False)
         classifier.train()
         for mstate in self.feature_extractor.feed(loader):
@@ -278,9 +279,9 @@ class Model:
             reporter.update(clf_state)
 
     @torch.no_grad()
-    def _val_classifier(self, classifier: Classifier, loader, criterion, reporter: SourceReporter):
+    def _val_classifier(self, classifier: Classifier, loader: DataLoader, criterion, reporter: SourceReporter):
+        assert isinstance(loader.dataset, PartialDataset) and not loader.dataset.is_train()
         self.set_train(False)
-
         for mstate in self.feature_extractor.feed(loader):
             clf_state = classifier.feed(state=mstate)
             outputs, labels, labels_np = clf_state.outputs, clf_state.labels, clf_state.labels_np
@@ -335,8 +336,7 @@ class Model:
         upload_classifier(classifier)
 
     def train_new_classifier(self, newset: PartialDataset, clf_memory: Memory, ctrl_memory, shared_memory: Memory):
-        """Train a new classifier on the dataset. Optionally given otherset that contains
-        examples from unknown classes.
+        """Train a new classifier on the dataset. Samples in the memories will serve as "other" category.
 
         Algorithm:
             if training with other:

@@ -122,7 +122,10 @@ class Memory:
 
     def _add_new_class(self, cls, ids: np.ndarray, scores: np.ndarray, per_class):
         n = len(ids)
-        sorted_idx = np.argsort(scores)[n:n - per_class - 1:-1]  # sort descending
+        if per_class >= n:
+            sorted_idx = np.argsort(scores)[::-1]  # sort descending
+        else:
+            sorted_idx = np.argsort(scores)[n:n - per_class - 1:-1]  # sort descending
         self._ids[cls] = added_ids = ids[sorted_idx]
         self._scores[cls] = scores[sorted_idx]
         return added_ids

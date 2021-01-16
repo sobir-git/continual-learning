@@ -1,12 +1,13 @@
 from functools import reduce
+from random import shuffle
 from types import SimpleNamespace
 
 import numpy as np
 from torch.utils.data import SequentialSampler, RandomSampler
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision.transforms import Compose, ToTensor
 
-from exp2.data import ContinuousRandomSampler, DualBatchSampler, create_loader, PartialDataset
+from exp2.data import ContinuousRandomSampler, DualBatchSampler, create_loader, PartialDataset, CIData
 
 
 def test_continous_random_sampler():
@@ -73,3 +74,18 @@ def test_create_loader():
     assert set(main_ids).union(memory_ids).issuperset(all_ids), "The batches should contain all samples at least ones"
     for id_ in main_ids:
         assert all_ids.count(id_) == 1, "All samples in the main dataset should appear exactly once"
+
+
+def test_get_phase_data():
+    train_source = CIFAR100(root='../data')
+    test_source = CIFAR100(root='../data', train=False)
+    class_order = list(range(100))
+    shuffle(class_order)
+    cidata = CIData(train_source=train_source, test_source=test_source, class_order=class_order,
+                    n_classes_per_phase=10, n_phases=10, train_transform=None, test_transform=None)
+    for phase in range(1, 11):
+        trainset, testset, cumul_testset = cidata.get_phase_data(phase)
+        assert len(trainset.labels) == 5000
+        assert len(testset.labels) == 1000
+        assert set(testset.labels) == set(trainset.labels) == set(class_order[(phase - 1) * 10:phase * 10])
+        assert set(cumul_testset.labels) == set(class_order[:phase * 10])
