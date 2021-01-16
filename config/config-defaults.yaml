@@ -12,6 +12,7 @@ clf:
   lr_scheduler: poly1
   min_lr: 1.0e-05
   optimizer: SGD
+  gamma: 0.975
 ctrl:
   epochs: 200
   epochs_tol: 20
