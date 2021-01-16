@@ -57,7 +57,10 @@ class Checkpoint(nn.Module):
         """Load if checkpoint exists."""
         if not os.path.isfile(self._checkpoint_file):
             return
-        return self.load_from_checkpoint(self._checkpoint_file)
+        d = self.load_from_checkpoint(self._checkpoint_file)
+        wandb.log({f'clf/{self.idx}/best_epoch': d["epoch"]})
+        wandb.log({f'clf/{self.idx}/min_val_loss': d["val_loss"]})
+        return d
 
     def get_checkpoint_file(self):
         return self._checkpoint_file
