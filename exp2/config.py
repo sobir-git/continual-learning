@@ -47,6 +47,7 @@ def parse_args(args=None):
     parser.add_argument('--defaults', type=str, default='./config/config-defaults.yaml', help='Default config file')
     parser.add_argument('--configs', type=str, nargs='*', default='./config/config.yaml', help='Config file')
     parser.add_argument('--wandb_group', type=str, help='W&B group in experiments')
+    parser.add_argument('--project', type=str, help='W&B project name')
 
     # lr_choices = ['exp', 'step2', 'step3', 'step4', 'step5', 'poly1', 'poly2', 'poly3', 'poly4', 'const']
     # default_lr_scheduler = 'poly1'
