@@ -75,7 +75,13 @@ if __name__ == '__main__':
 
     # init wandb and get its wrapped config
     group = args.wandb_group
-    wandb.init(project=args.project, group=group, config=config_dict, job_type='clf-training')
+    init_dict = dict()
+    if args.project:
+        init_dict['project'] = args.project
+    if args.wandb_group:
+        init_dict['group'] = args.wandb_group
+
+    run = wandb.init(**init_dict, job_type='clf-training')
     config = wandb.config
 
     # extend logging directory with the current unique run name
