@@ -241,8 +241,12 @@ class StackedConfusionMatricesLogger(LoggerBase):
         vmax = max([m.max() for m in matrices])
         cmap = sns.color_palette('rocket', as_cmap=True)
         rows = reports[0].true_classes
+        if len(rows) > 50:
+            rows = []
         for i, m in enumerate(matrices):
             columns = reports[i].pred_classes
+            if len(matrices) > 20:
+                columns = []
             sns.heatmap(m, ax=axs[i], cbar=False, xticklabels=columns, yticklabels=rows,
                         linewidths=0, cmap=cmap, vmin=vmin, vmax=vmax, square=True)
             if self.titles:
@@ -260,6 +264,7 @@ class StackedConfusionMatricesLogger(LoggerBase):
         fig.tight_layout()
         buf = six.BytesIO()
         fig.savefig(buf, bbox_inches='tight')
+        fig.close()
         image = PILImage.open(buf)
         self.logger.log_image(self.key, image)
 
