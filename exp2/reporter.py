@@ -264,7 +264,7 @@ class StackedConfusionMatricesLogger(LoggerBase):
         fig.tight_layout()
         buf = six.BytesIO()
         fig.savefig(buf, bbox_inches='tight')
-        fig.close()
+        plt.close(fig)
         image = PILImage.open(buf)
         self.logger.log_image(self.key, image)
 
