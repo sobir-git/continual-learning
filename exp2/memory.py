@@ -54,6 +54,9 @@ class Memory:
         Args:
             max_size (int): the effective maxsize, should be no more than self.max_size
         """
+        # handle degenerate case
+        if len(ids) == 0:
+            return np.array([], dtype=int)  # added ids
         if max_size is None:
             max_size = self.max_size
         else:
@@ -163,17 +166,18 @@ class MemoryManager:
         return self.clf_memory, self.ctrl_memory, self.shared_memory
 
     def update_memories(self, dataset: PartialDataset, phase: int):
-        # to prevent overlap we choose a splitting index
-        split_idx = int(
-            len(dataset) * self.clf_memory.max_size / (self.clf_memory.max_size + self.shared_memory.max_size))
-        self.clf_memory.update(ids=dataset.ids[:split_idx], new_classes=dataset.classes)
-        self.shared_memory.update(ids=dataset.ids[split_idx:], new_classes=dataset.classes)
-        with self.artifact.new_file(f'ids-{phase}.pkl', 'wb') as f:
-            pickle.dump({
-                'clf': self.clf_memory.get_state(),
-                'shared': self.shared_memory.get_state(),
-                'ctrl': self.ctrl_memory.get_state()
-            }, f)
+        if self.clf_memory.max_size + self.shared_memory.max_size > 0:
+            # to prevent overlap we choose a splitting index
+            split_idx = int(
+                len(dataset) * self.clf_memory.max_size / (self.clf_memory.max_size + self.shared_memory.max_size))
+            self.clf_memory.update(ids=dataset.ids[:split_idx], new_classes=dataset.classes)
+            self.shared_memory.update(ids=dataset.ids[split_idx:], new_classes=dataset.classes)
+            with self.artifact.new_file(f'ids-{phase}.pkl', 'wb') as f:
+                pickle.dump({
+                    'clf': self.clf_memory.get_state(),
+                    'shared': self.shared_memory.get_state(),
+                    'ctrl': self.ctrl_memory.get_state()
+                }, f)
         self.log_total_memory_sizes()
 
     def load_from_artifact(self, artifact: wandb.Artifact, phase: int):
