@@ -28,5 +28,5 @@ def simple_net(n_classes=10):
     )
 
 
-def simple_net_20_classes():
-    return simple_net(20)
+def simple_net_20_classes(num_classes=20):
+    return simple_net(num_classes)

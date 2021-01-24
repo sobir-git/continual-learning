@@ -274,9 +274,11 @@ if __name__ == '__main__':
     url = 'http://storage.googleapis.com/public-models/efficientnet-b0-08094119.pth'
     model = EfficientNet.from_pretrained(url)
     batch = torch.rand(8, 3, 224, 224)
-    outputs = model(batch)
-    outputs1 = model[:-1](batch)
-    outputs2 = model[:-2](batch)
-    print('outputs:', outputs.shape)
-    print('outputs1:', outputs1.shape)
-    print('outputs2:', outputs2.shape)
+    outputs = model.stem(batch)
+    print('input shape:', batch.shape[1:])
+    print('model.stem output shape:', outputs.shape[1:])
+
+    n = len(model.blocks)
+    for i in range(n):
+        outputs = model.blocks[i](outputs)
+        print(f'model.block[{i}] output shape:', outputs.shape[1:])
