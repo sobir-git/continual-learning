@@ -49,13 +49,15 @@ def train_model(config, model: Checkpoint, dataset: PartialDataset, logger: Logg
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
     criterion = torch.nn.CrossEntropyLoss()
     trainset, valset = dataset.split(test_size=config.val_size)
-    train_loader = DataLoader(trainset, batch_size=config.batch_size, shuffle=True)
+    train_loader = DataLoader(trainset, batch_size=config.batch_size, shuffle=True,
+                              pin_memory=config.torch['pin_memory'], num_workers=config.torch['num_workers'])
+    non_blocking = config.torch['non_blocking']
     for ep in range(config.epochs):
         loss_meter = AverageMeter()
 
         # train
         for inputs, labels, _ in train_loader:
-            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
+            inputs, labels = inputs.to(DEVICE, non_blocking=non_blocking), labels.to(DEVICE, non_blocking=non_blocking)
             outputs = model(inputs)
             loss = criterion(outputs, labels)
 
