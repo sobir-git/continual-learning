@@ -5,6 +5,7 @@ import wandb
 from torch.utils.data import DataLoader
 
 import utils
+from exp2.classifier import Checkpoint
 from exp2.config import load_configs
 from exp2.data import prepare_data, PartialDataset
 from exp2.memory import Memory
@@ -39,9 +40,10 @@ def test_model(config, model, dataset, logger: Logger, prefx='test'):
         acc_meter.update(torch.eq(predictions, labels).type(torch.FloatTensor).mean(), batch_size)
 
     logger.log({prefx + '_loss': loss_meter.avg, prefx + '_acc': acc_meter.avg})
+    return loss_meter.avg
 
 
-def train_model(config, model, dataset: PartialDataset, logger: Logger):
+def train_model(config, model: Checkpoint, dataset: PartialDataset, logger: Logger):
     optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, momentum=0.9)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
     criterion = torch.nn.CrossEntropyLoss()
@@ -65,7 +67,8 @@ def train_model(config, model, dataset: PartialDataset, logger: Logger):
         logger.log({'train_loss': loss_meter.avg, 'epoch': ep})
 
         # validate
-        test_model(config, model, valset, logger, prefx='val')
+        val_loss = test_model(config, model, valset, logger, prefx='val')
+        model.checkpoint(optimizer, val_loss, epoch=ep)
 
         # schedule learning rate
         lr_scheduler.step()
@@ -84,6 +87,7 @@ def run(config):
                     test_transform=data.test_transform)
 
     model = create_model(config, len(data.class_order)).to(DEVICE)
+    model: Checkpoint = Checkpoint.wrap(model, checkpoint_file=wandb.run.dir + '/' + 'checkpoint.pth')
     logger.log({'class_order': data.class_order})
 
     for phase in range(1, config.n_phases + 1):
@@ -104,6 +108,7 @@ def run(config):
 
         # test the model
         console_logger.info('Testing the model')
+        model.load_best()
         test_model(config, model, cumul_testset, logger)
         logger.commit()
 

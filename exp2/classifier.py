@@ -34,6 +34,15 @@ class Checkpoint(nn.Module):
         else:
             self._checkpoint_file = checkpoint_file
 
+    @staticmethod
+    def wrap(model: nn.Module, checkpoint_file) -> "Checkpoint":
+        class Patched(model.__class__, Checkpoint):
+            pass
+
+        model.__class__ = Patched
+        Checkpoint.__init__(model, checkpoint_file)
+        return model
+
     def checkpoint(self, optimizer, val_loss, epoch):
         """Checkpoint if val_loss is the minimum"""
         if self._min_val_loss > val_loss:
