@@ -1,6 +1,7 @@
 import os
 import random
 import string
+from functools import partial
 from typing import List, Iterable
 
 import numpy as np
@@ -24,10 +25,13 @@ def upload_classifier(classifier):
 
 
 class Checkpoint(nn.Module):
-    _min_val_loss = -float('inf')
+    _min_val_loss = float('inf')
 
     def __init__(self, checkpoint_file=None):
         super().__init__()
+        self._init(checkpoint_file)
+
+    def _init(self, checkpoint_file):
         if checkpoint_file is None:
             letters = string.ascii_lowercase + string.digits
             self._checkpoint_file = ''.join(random.choice(letters) for _ in range(10)) + '.pt'
@@ -36,11 +40,12 @@ class Checkpoint(nn.Module):
 
     @staticmethod
     def wrap(model: nn.Module, checkpoint_file) -> "Checkpoint":
-        class Patched(model.__class__, Checkpoint):
-            pass
-
-        model.__class__ = Patched
-        Checkpoint.__init__(model, checkpoint_file)
+        Checkpoint._init(model, checkpoint_file)
+        model._min_val_loss = float('inf')
+        model.checkpoint = partial(Checkpoint.checkpoint, model)
+        model.load_from_checkpoint = partial(Checkpoint.load_from_checkpoint, model)
+        model.get_checkpoint_file = partial(Checkpoint.get_checkpoint_file, model)
+        model.load_best = partial(Checkpoint.load_best, model)
         return model
 
     def checkpoint(self, optimizer, val_loss, epoch):
@@ -67,8 +72,6 @@ class Checkpoint(nn.Module):
         if not os.path.isfile(self._checkpoint_file):
             return
         d = self.load_from_checkpoint(self._checkpoint_file)
-        wandb.log({f'clf/{self.idx}/best_epoch': d["epoch"]})
-        wandb.log({f'clf/{self.idx}/min_val_loss': d["val_loss"]})
         return d
 
     def get_checkpoint_file(self):
@@ -77,7 +80,6 @@ class Checkpoint(nn.Module):
 
 class Classifier(Checkpoint, nn.Module):
     other_label = -1
-    _min_val_loss = float('inf')
 
     def __init__(self, config, net, classes, idx):
         super().__init__(checkpoint_file=config.logdir + '/' + f'classifier_{idx}.pt')
@@ -163,3 +165,9 @@ class Classifier(Checkpoint, nn.Module):
             return self._feed_with_state(state)
         else:
             return (self._feed_with_state(state) for state in states)
+
+    def load_best(self):
+        d = super(Classifier, self).load_best()
+        wandb.log({f'clf/{self.idx}/best_epoch': d["epoch"]})
+        wandb.log({f'clf/{self.idx}/min_val_loss': d["val_loss"]})
+        return d

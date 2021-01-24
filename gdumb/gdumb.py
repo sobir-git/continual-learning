@@ -19,6 +19,7 @@ DEVICE = get_default_device()
 
 def create_model(config, num_classes):
     model = model_mapping[config.model](num_classes=num_classes)
+    model: Checkpoint = Checkpoint.wrap(model, checkpoint_file=wandb.run.dir + '/' + 'checkpoint.pth')
     return model
 
 
@@ -87,7 +88,6 @@ def run(config):
                     test_transform=data.test_transform)
 
     model = create_model(config, len(data.class_order)).to(DEVICE)
-    model: Checkpoint = Checkpoint.wrap(model, checkpoint_file=wandb.run.dir + '/' + 'checkpoint.pth')
     logger.log({'class_order': data.class_order})
 
     for phase in range(1, config.n_phases + 1):
