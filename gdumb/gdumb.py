@@ -43,11 +43,13 @@ def test_model(config, model, dataset, logger: Logger, prefx='test'):
 
 def train_model(config, model, dataset: PartialDataset, logger: Logger):
     optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, momentum=0.9)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=0.95)
     criterion = torch.nn.CrossEntropyLoss()
-    loss_meter = AverageMeter()
     trainset, valset = dataset.split(test_size=config.val_size)
     train_loader = DataLoader(trainset, batch_size=config.batch_size, shuffle=True)
     for ep in range(config.epochs):
+        loss_meter = AverageMeter()
+
         # train
         for inputs, labels, _ in train_loader:
             inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
@@ -64,6 +66,12 @@ def train_model(config, model, dataset: PartialDataset, logger: Logger):
 
         # validate
         test_model(config, model, valset, logger, prefx='val')
+
+        # schedule learning rate
+        lr_scheduler.step()
+        lr = lr_scheduler.get_last_lr()[0]
+        logger.log({'lr': lr})
+
         logger.commit()
 
 

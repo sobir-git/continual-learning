@@ -14,3 +14,4 @@ torch:
   pin_memory: false
 datadir: ../data
 class_order_seed: -1
+lr_step_size: 5
