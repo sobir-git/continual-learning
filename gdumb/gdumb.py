@@ -83,7 +83,7 @@ def run(config):
     memory = Memory(config.memory_size, data.train_source, train_transform=data.train_transform,
                     test_transform=data.test_transform)
 
-    model = create_model(config, len(data.class_order))
+    model = create_model(config, len(data.class_order)).to(DEVICE)
     logger.log({'class_order': data.class_order})
 
     for phase in range(1, config.n_phases + 1):
