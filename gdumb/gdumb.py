@@ -45,11 +45,10 @@ def test_model(config, model, dataset, logger: Logger, prefx='test'):
     return loss_meter.avg
 
 
-def train_model(config, model: Checkpoint, dataset: PartialDataset, logger: Logger):
+def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: PartialDataset, logger: Logger):
     optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, momentum=0.9)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
     criterion = torch.nn.CrossEntropyLoss()
-    trainset, valset = dataset.split(test_size=config.val_size)
     train_loader = DataLoader(trainset, batch_size=config.batch_size, shuffle=True,
                               pin_memory=config.torch['pin_memory'], num_workers=config.torch['num_workers'])
     non_blocking = config.torch['non_blocking']
@@ -97,13 +96,24 @@ def train_model(config, model: Checkpoint, dataset: PartialDataset, logger: Logg
             return
 
 
+def update_memories(trainset, memory, val_memory):
+    split_idx = int(len(trainset) * memory.max_size / (memory.max_size + val_memory.max_size))
+    memory.update(trainset.ids[:split_idx], new_classes=trainset.classes)
+    val_memory.update(trainset.ids[split_idx:], trainset.classes)
+    console_logger.info(f'Memory sizes (train, val): {memory.get_n_samples(), val_memory.get_n_samples()}')
+
+
 def run(config):
     logger = Logger(config, console_logger=console_logger)
     console_logger.info('config:' + str(config))
     # prepare data
     data = prepare_data(config)
-    memory = Memory(config.memory_size, data.train_source, train_transform=data.train_transform,
+    train_sz = int(config.memory_size * (1 - config.val_size))
+    val_sz = config.memory_size - train_sz
+    memory = Memory(train_sz, data.train_source, train_transform=data.train_transform,
                     test_transform=data.test_transform)
+    val_memory = Memory(val_sz, data.train_source, train_transform=data.train_transform,
+                        test_transform=data.test_transform)
 
     model = create_model(config, len(data.class_order)).to(DEVICE)
     logger.log({'class_order': data.class_order})
@@ -117,12 +127,11 @@ def run(config):
 
         # update memory
         console_logger.info('Updating memory')
-        memory.update(trainset.ids, new_classes=trainset.classes)
-        console_logger.info(f'Memory size: {memory.get_n_samples()}')
+        update_memories(trainset, memory, val_memory)
 
         # train model on memory samples
         console_logger.info(f'Training the model')
-        train_model(config, model, memory.get_dataset(train=True), logger)
+        train_model(config, model, memory.get_dataset(train=True), val_memory.get_dataset(train=False), logger)
 
         # test the model
         console_logger.info('Testing the model')
