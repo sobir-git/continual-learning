@@ -1,5 +1,6 @@
 import argparse
 
+import numpy as np
 import torch
 import wandb
 from torch.utils.data import DataLoader
@@ -11,7 +12,7 @@ from exp2.data import prepare_data, PartialDataset
 from exp2.memory import Memory
 from exp2.models import model_mapping
 from logger import Logger
-from utils import get_default_device, AverageMeter, TrainingStopper
+from utils import get_default_device, AverageMeter, TrainingStopper, cutmix_data
 
 console_logger = utils.get_console_logger(name='main')
 DEVICE = get_default_device()
@@ -58,8 +59,16 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
         # train
         for inputs, labels, _ in train_loader:
             inputs, labels = inputs.to(DEVICE, non_blocking=non_blocking), labels.to(DEVICE, non_blocking=non_blocking)
+
+            do_cutmix = config.regularization == 'cutmix' and np.random.rand(1) < config.cutmix_prob
+            if do_cutmix > 0:
+                inputs, labels_a, labels_b, lam = cutmix_data(x=inputs, y=labels, alpha=config.cutmix_alpha)
+
+            # Forward, backward passes then step
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(outputs, labels_b) \
+                if do_cutmix \
+                else criterion(outputs, labels)
 
             optimizer.zero_grad()
             loss.backward()
