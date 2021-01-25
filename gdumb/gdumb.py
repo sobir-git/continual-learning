@@ -92,7 +92,7 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
         logger.commit()
 
         if stopper.do_stop():
-            console_logger.log(f'Early stopping at epoch: {ep}')
+            console_logger.info(f'Early stopping at epoch: {ep}')
 
 
 def update_memories(dataset, memory, val_memory):
