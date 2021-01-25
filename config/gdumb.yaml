@@ -19,3 +19,4 @@ lr_step_size: 5
 gamma: 0.95
 pretrained: true
 split_pos: -1
+epochs_tol: 10

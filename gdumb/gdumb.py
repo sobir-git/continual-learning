@@ -11,7 +11,7 @@ from exp2.data import prepare_data, PartialDataset
 from exp2.memory import Memory
 from exp2.models import model_mapping
 from logger import Logger
-from utils import get_default_device, AverageMeter
+from utils import get_default_device, AverageMeter, TrainingStopper
 
 console_logger = utils.get_console_logger(name='main')
 DEVICE = get_default_device()
@@ -51,6 +51,7 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
     train_loader = DataLoader(trainset, batch_size=config.batch_size, shuffle=True,
                               pin_memory=config.torch['pin_memory'], num_workers=config.torch['num_workers'])
     non_blocking = config.torch['non_blocking']
+    stopper = TrainingStopper(config)
     for ep in range(config.epochs):
         loss_meter = AverageMeter()
 
@@ -72,6 +73,7 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
         if len(valset) > 0:
             val_loss = test_model(config, model, valset, logger, prefx='val')
             model.checkpoint(optimizer, val_loss, epoch=ep)
+            stopper.update(val_loss)
 
         # schedule learning rate
         lr_scheduler.step()
@@ -79,6 +81,9 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
         logger.log({'lr': lr})
 
         logger.commit()
+
+        if stopper.do_stop():
+            console_logger.log(f'Early stopping at epoch: {ep}')
 
 
 def update_memories(dataset, memory, val_memory):
