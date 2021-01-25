@@ -93,6 +93,7 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
 
         if stopper.do_stop():
             console_logger.info(f'Early stopping at epoch: {ep}')
+            return
 
 
 def update_memories(dataset, memory, val_memory):
