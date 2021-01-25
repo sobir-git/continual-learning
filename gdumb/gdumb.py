@@ -99,8 +99,9 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
 
 def update_memories(trainset, memory, val_memory):
     split_idx = int(len(trainset) * memory.max_size / (memory.max_size + val_memory.max_size))
-    memory.update(trainset.ids[:split_idx], new_classes=trainset.classes)
-    val_memory.update(trainset.ids[split_idx:], trainset.classes)
+    shuffled = torch.randperm(len(trainset.ids))
+    memory.update(trainset.ids[shuffled[:split_idx]], new_classes=trainset.classes)
+    val_memory.update(trainset.ids[shuffled[split_idx:]], trainset.classes)
     console_logger.info(f'Memory sizes (train, val): {memory.get_n_samples(), val_memory.get_n_samples()}')
 
 
