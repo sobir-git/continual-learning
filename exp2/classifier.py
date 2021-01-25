@@ -38,6 +38,15 @@ class Checkpoint(nn.Module):
         else:
             self._checkpoint_file = checkpoint_file
 
+    def remove_checkpoint(self):
+        self._min_val_loss = float('inf')
+        try:
+            os.remove(self._checkpoint_file)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            console_logger.error(f'Failed to remove checkpoint file: {e}')
+
     @staticmethod
     def wrap(model: nn.Module, checkpoint_file) -> "Checkpoint":
         Checkpoint._init(model, checkpoint_file)
@@ -46,6 +55,7 @@ class Checkpoint(nn.Module):
         model.load_from_checkpoint = partial(Checkpoint.load_from_checkpoint, model)
         model.get_checkpoint_file = partial(Checkpoint.get_checkpoint_file, model)
         model.load_best = partial(Checkpoint.load_best, model)
+        model.remove_checkpoint = partial(Checkpoint.remove_checkpoint, model)
         return model
 
     def checkpoint(self, optimizer, val_loss, epoch):

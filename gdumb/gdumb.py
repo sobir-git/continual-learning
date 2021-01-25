@@ -53,6 +53,7 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
                               pin_memory=config.torch['pin_memory'], num_workers=config.torch['num_workers'])
     non_blocking = config.torch['non_blocking']
     stopper = TrainingStopper(config)
+    model.remove_checkpoint()
     for ep in range(config.epochs):
         loss_meter = AverageMeter()
 
