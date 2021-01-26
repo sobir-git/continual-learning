@@ -17,8 +17,9 @@ datadir: ../data
 class_order_seed: -1
 lr_step_size: 5
 gamma: 0.95
-pretrained: true
-split_pos: -1
+pretrained: true  # use pretrained model
+clone_head: true  # use weights from head rather than random initialization
+split_pos: -1  # place where to split pretrained model into feature extractor and head
 epochs_tol: 10
 regularization: cutmix
 cutmix_prob: 0.5

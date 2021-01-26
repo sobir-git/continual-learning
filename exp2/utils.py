@@ -16,6 +16,7 @@ def _reset_parameters(net: nn.Module):
     net.apply(fn)
 
 
+@torch.no_grad()
 def split_model(config, model):
     """Split the model into back and head.
     The back for being used as feature extractor, and frozen.
@@ -38,9 +39,11 @@ def split_model(config, model):
     del head[-1]
     in_features = clf_layer.in_features
 
+    @torch.no_grad()
     def head_constructor(n_classes: int):
         # replace the classification layer from the head with the one matching number of classes
-        layer = nn.Linear(in_features=in_features, out_features=n_classes)
+        layer = nn.Linear(in_features=in_features, out_features=n_classes, bias=False)
+        layer.weight.fill_(0.0)
         newhead = copy.deepcopy(head)
         newhead = nn.Sequential(*newhead, layer)
         if not config.clone_head:

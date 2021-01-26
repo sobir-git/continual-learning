@@ -9,8 +9,10 @@ import utils
 from exp2.classifier import Checkpoint
 from exp2.config import load_configs
 from exp2.data import prepare_data, PartialDataset
+from exp2.feature_extractor import load_pretrained
 from exp2.memory import MemoryManagerBasic
 from exp2.models import model_mapping
+from exp2.utils import split_model
 from logger import Logger
 from utils import get_default_device, AverageMeter, TrainingStopper, cutmix_data
 
@@ -18,9 +20,18 @@ console_logger = utils.get_console_logger(name='main')
 DEVICE = get_default_device()
 
 
-def create_model(config, num_classes):
-    model = model_mapping[config.model](num_classes=num_classes)
-    model: Checkpoint = Checkpoint.wrap(model, checkpoint_file=wandb.run.dir + '/' + 'checkpoint.pth')
+def create_model(config, n_classes):
+    if config.pretrained:
+        pretrained = load_pretrained(config.model)
+        fe, head_constructor = split_model(config, pretrained)
+        fe.eval()
+        head = head_constructor(n_classes=n_classes)
+        _model = torch.nn.Sequential(fe, head)
+        _model.eval = lambda: head.eval()
+        _model.train = lambda: head.train()
+    else:
+        _model = model_mapping[config.model](num_classes=n_classes)
+    model: Checkpoint = Checkpoint.wrap(_model, checkpoint_file=wandb.run.dir + '/' + 'checkpoint.pth')
     return model
 
 
@@ -127,7 +138,7 @@ def run(config):
         # train model on memory samples
         console_logger.info(f'Training the model')
         trainset = memory_manager['train'].get_dataset(train=True)
-        valset = memory_manager['val'].get_dataset(train=True)
+        valset = memory_manager['val'].get_dataset(train=False)
         train_model(config, model, trainset, valset, logger)
 
         # test the model
