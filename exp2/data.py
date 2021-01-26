@@ -27,12 +27,12 @@ class PartialDataset(Dataset):
         self.test_transform = test_transform
         self.source = source
         self._classes = classes
-        self.ids = ids if isinstance(ids, np.ndarray) else np.array(ids, dtype=int)
+        self.ids = np.asarray(ids)
         self._set_train(train)
 
         # get corresponding labels
         self.labels = self.get_labels(self.source)[ids] if len(ids) > 0 \
-            else np.array([])
+            else np.array([], dtype=int)
 
     def _set_train(self, train):
         """Set the train mode."""
@@ -56,7 +56,6 @@ class PartialDataset(Dataset):
         return input, label, id
 
     def __len__(self):
-        """Length of self + otherset"""
         return len(self.ids)
 
     @classmethod
@@ -69,16 +68,17 @@ class PartialDataset(Dataset):
                    classes=classes)
 
     @staticmethod
-    def get_labels(dataset) -> np.ndarray:
-        """Only self labels"""
+    def get_labels(dataset: Dataset) -> np.ndarray:
+        """Get labels of the dataset."""
         if hasattr(dataset, 'labels'):
-            labels = dataset._labels
-        else:
+            labels = dataset.labels
+        elif hasattr(dataset, 'targets'):
             labels = dataset.targets
+        else:
+            raise TypeError(f"Dataset {dataset} has neither `labels` nor `targets` attributes")
 
         # make sure labels are numpy arrays
-        if not isinstance(labels, np.ndarray):
-            labels = np.array(labels)
+        labels = np.asarray(labels)
         return labels
 
     def split(self, test_size=None, train_size=None):

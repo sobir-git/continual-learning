@@ -3,6 +3,7 @@ from random import shuffle
 from types import SimpleNamespace
 
 import numpy as np
+import torchvision
 from torch.utils.data import SequentialSampler, RandomSampler
 from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision.transforms import Compose, ToTensor
@@ -43,7 +44,8 @@ def test_dual_batch_sampler():
 
 
 def test_create_loader():
-    config = SimpleNamespace(batch_memory_samples=2, batch_size=4, num_workers=0, pin_memory=False)
+    config = SimpleNamespace(batch_memory_samples=2, batch_size=4,
+                             torch=dict(non_bloking=True, num_workers=0, pin_memory=False))
     source = CIFAR10('../data')
     transform = ToTensor()
     main_ids = np.fromiter(range(10), dtype=int) * 10  # 0, 10, ..., 90
@@ -76,13 +78,20 @@ def test_create_loader():
         assert all_ids.count(id_) == 1, "All samples in the main dataset should appear exactly once"
 
 
-def test_get_phase_data():
-    train_source = CIFAR100(root='../data')
+def cifar100_10_test_data():
+    train_source = CIFAR100(root='../data', train=True)
     test_source = CIFAR100(root='../data', train=False)
     class_order = list(range(100))
     shuffle(class_order)
     cidata = CIData(train_source=train_source, test_source=test_source, class_order=class_order,
-                    n_classes_per_phase=10, n_phases=10, train_transform=None, test_transform=None)
+                    n_classes_per_phase=10, n_phases=10, train_transform=torchvision.transforms.ToTensor(),
+                    test_transform=torchvision.transforms.ToTensor())
+    return cidata
+
+
+def test_get_phase_data():
+    cidata = cifar100_10_test_data()
+    class_order = cidata.class_order
     for phase in range(1, 11):
         trainset, testset, cumul_testset = cidata.get_phase_data(phase)
         assert len(trainset.labels) == 5000

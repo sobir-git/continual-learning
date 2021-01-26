@@ -9,7 +9,7 @@ import utils
 from exp2.classifier import Checkpoint
 from exp2.config import load_configs
 from exp2.data import prepare_data, PartialDataset
-from exp2.memory import Memory
+from exp2.memory import MemoryManagerBasic
 from exp2.models import model_mapping
 from logger import Logger
 from utils import get_default_device, AverageMeter, TrainingStopper, cutmix_data
@@ -27,7 +27,7 @@ def create_model(config, num_classes):
 @torch.no_grad()
 def test_model(config, model, dataset, logger: Logger, prefx='test'):
     criterion = torch.nn.CrossEntropyLoss()
-    loader = DataLoader(dataset, batch_size=config.batch_size)
+    loader = DataLoader(dataset, batch_size=config.batch_size, shuffle=False)
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
 
@@ -97,14 +97,6 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
             return
 
 
-def update_memories(trainset, memory, val_memory):
-    split_idx = int(len(trainset) * memory.max_size / (memory.max_size + val_memory.max_size))
-    shuffled = torch.randperm(len(trainset.ids))
-    memory.update(trainset.ids[shuffled[:split_idx]], new_classes=trainset.classes)
-    val_memory.update(trainset.ids[shuffled[split_idx:]], trainset.classes)
-    console_logger.info(f'Memory sizes (train, val): {memory.get_n_samples(), val_memory.get_n_samples()}')
-
-
 def run(config):
     logger = Logger(config, console_logger=console_logger)
     console_logger.info('config:' + str(config))
@@ -112,11 +104,9 @@ def run(config):
     data = prepare_data(config)
     train_sz = int(config.memory_size * (1 - config.val_size))
     val_sz = config.memory_size - train_sz
-    memory = Memory(train_sz, data.train_source, train_transform=data.train_transform,
-                    test_transform=data.test_transform)
-    val_memory = Memory(val_sz, data.train_source, train_transform=data.train_transform,
-                        test_transform=data.test_transform)
-
+    memory_manager = MemoryManagerBasic(sizes=[train_sz, val_sz], source=data.train_source,
+                                        train_transform=data.train_transform,
+                                        test_transform=data.test_transform, names=['train', 'val'])
     model = create_model(config, len(data.class_order)).to(DEVICE)
     logger.log({'class_order': data.class_order})
 
@@ -129,11 +119,14 @@ def run(config):
 
         # update memory
         console_logger.info('Updating memory')
-        update_memories(trainset, memory, val_memory)
+        memory_manager.update_memories(trainset)
+        memory_manager.log_memory_sizes()
 
         # train model on memory samples
         console_logger.info(f'Training the model')
-        train_model(config, model, memory.get_dataset(train=True), val_memory.get_dataset(train=False), logger)
+        trainset = memory_manager['train'].get_dataset(train=True)
+        valset = memory_manager['val'].get_dataset(train=True)
+        train_model(config, model, trainset, valset, logger)
 
         # test the model
         console_logger.info('Testing the model')

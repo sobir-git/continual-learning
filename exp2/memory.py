@@ -6,7 +6,7 @@ import numpy as np
 import wandb
 from torch.utils.data import Dataset
 
-from exp2.data import PartialDataset
+from exp2.data import PartialDataset, CIData
 from utils import get_console_logger
 
 console_logger = get_console_logger(__name__)
@@ -53,14 +53,17 @@ class Memory:
 
         Args:
             max_size (int): the effective maxsize, should be no more than self.max_size
+            ids: indices belonging to the `source` dataset.
+            scores: array of the same size as ids, representing scores for each element
+            max_size: additional size limit on the memory. If specified, after this update
+                the memory size will is not greater than it.
         """
         # handle degenerate case
         if len(ids) == 0:
             return np.array([], dtype=int)  # added ids
         if max_size is None:
             max_size = self.max_size
-        else:
-            assert max_size <= self.max_size
+        assert max_size <= self.max_size
 
         labels = PartialDataset.get_labels(self.source)[ids]
         assert set(labels).issubset(new_classes)
@@ -136,6 +139,7 @@ class Memory:
     def _assert_maxsize(self, max_size=None):
         if max_size is None:
             max_size = self.max_size
+        max_size = min(max_size, self.max_size)
         size = self.get_n_samples()
         assert size <= max_size, f'memory size > maxsize ({size} > {max_size})'
 
@@ -151,52 +155,77 @@ class Memory:
         assert state['max_size'] == self.max_size
 
 
-class MemoryManager:
-    def __init__(self, config, data):
+class MemoryManagerBasic:
+    def __init__(self, sizes: List[int], source, train_transform, test_transform, names=None):
+        self.memories = []
+        for sz in sizes:
+            self.memories.append(
+                Memory(source=source, max_size=sz, train_transform=train_transform, test_transform=test_transform))
+        self.names = names if names is not None else ['mem' + str(i) for i in range(1, len(sizes) + 1)]
+
+    def get_memories(self):
+        return self.memories
+
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            i = self.names.index(item)
+            return self.memories[i]
+        return self.memories[item]
+
+    def items(self):
+        return zip(self.names, self.memories)
+
+    def update_memories(self, dataset: PartialDataset, memories: List[Memory] = None):
+        if memories is None:
+            memories = self.memories
+        total_sz = sum(m.max_size for m in memories)
+        if total_sz > 0:
+            shuffled_ids = np.random.permutation(dataset.ids)
+            split_sizes = [int(len(dataset) * m.max_size / total_sz) for m in memories]
+            cumul_sz = 0
+            for memory, sz in zip(self.memories, split_sizes):
+                memory.update(ids=shuffled_ids[cumul_sz:cumul_sz + sz], new_classes=dataset.classes)
+                cumul_sz += sz
+
+    def log_memory_sizes(self):
+        sizes = [m.get_n_samples() for m in self.memories]
+        console_logger.info(f'Memory sizes {tuple(self.names)}: {" + ".join(map(str, sizes))} = {sum(sizes)}')
+        return sum(sizes)
+
+
+class MemoryManager(MemoryManagerBasic):
+    def __init__(self, config, data: CIData):
         """Return memory storages for controller and for classifiers."""
-        clf_memory_size = config.clf['memory_size']
-        ctrl_memory_size = config.ctrl['memory_size']
-        shared_memory_size = config.shared_memory_size
-        self.clf_memory = Memory(clf_memory_size, data.train_source, data.train_transform, data.test_transform)
-        self.ctrl_memory = Memory(ctrl_memory_size, data.train_source, data.train_transform, data.test_transform)
-        self.shared_memory = Memory(shared_memory_size, data.train_source, data.train_transform, data.test_transform)
+        sizes = [config.clf['memory_size'], config.ctrl['memory_size'], config.shared_memory_size]
+        super().__init__(sizes, data.train_source, train_transform=data.train_transform,
+                         test_transform=data.test_transform, names=['clf', 'ctrl', 'shared'])
         self.artifact = wandb.Artifact(f'memory-ids-{wandb.run.id}', 'ids')
 
     def get_memories(self):
-        return self.clf_memory, self.ctrl_memory, self.shared_memory
+        return self['clf'], self['ctrl'], self['shared']
 
     def update_memories(self, dataset: PartialDataset, phase: int):
-        if self.clf_memory.max_size + self.shared_memory.max_size > 0:
-            # to prevent overlap we choose a splitting index
-            split_idx = int(
-                len(dataset) * self.clf_memory.max_size / (self.clf_memory.max_size + self.shared_memory.max_size))
-            self.clf_memory.update(ids=dataset.ids[:split_idx], new_classes=dataset.classes)
-            self.shared_memory.update(ids=dataset.ids[split_idx:], new_classes=dataset.classes)
-            with self.artifact.new_file(f'ids-{phase}.pkl', 'wb') as f:
-                pickle.dump({
-                    'clf': self.clf_memory.get_state(),
-                    'shared': self.shared_memory.get_state(),
-                    'ctrl': self.ctrl_memory.get_state()
-                }, f)
-        self.log_total_memory_sizes()
+        """Update classifier and shared memory.
+        Then upload artifacts, and log total memory sizes"""
+        super(MemoryManager, self).update_memories(dataset, memories=[self['clf'], self['shared']])
+        self.upload_artifacts(phase)
+        self.log_memory_sizes()
+
+    def upload_artifacts(self, phase: int):
+        with self.artifact.new_file(f'ids-{phase}.pkl', 'wb') as f:
+            pickle.dump({
+                name: memory.get_state() for name, memory in self.items()
+            }, f)
 
     def load_from_artifact(self, artifact: wandb.Artifact, phase: int):
         folder = Path(artifact.download())
         with open(folder / f'ids-{phase}.pkl', 'rb') as f:
             d = pickle.load(f)
 
-        for pref in ('clf', 'ctrl', 'shared'):
-            state = d[pref]
-            mem: Memory = getattr(self, pref + '_memory')
+        for name in self.names:
+            state = d[name]
+            mem: Memory = getattr(self, name)
             mem.load_state(state)
-
-    def log_total_memory_sizes(self):
-        ct = self.ctrl_memory.get_n_samples()
-        cf = self.clf_memory.get_n_samples()
-        sh = self.shared_memory.get_n_samples()
-        tot = ct + cf + sh
-        console_logger.info('Memory sizes (classifier, controller, shared): %s + %s + %s = %s', cf, ct, sh, tot)
-        return tot
 
     def on_training_end(self):
         console_logger.info('Uploading memory indices')
