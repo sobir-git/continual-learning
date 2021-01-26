@@ -26,6 +26,7 @@ def create_model(config, num_classes):
 
 @torch.no_grad()
 def test_model(config, model, dataset, logger: Logger, prefx='test'):
+    model.eval()
     criterion = torch.nn.CrossEntropyLoss()
     loader = DataLoader(dataset, batch_size=config.batch_size, shuffle=False)
     loss_meter = AverageMeter()
@@ -55,6 +56,7 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
     stopper = TrainingStopper(config)
     model.remove_checkpoint()
     for ep in range(config.epochs):
+        model.train()
         loss_meter = AverageMeter()
 
         # train

@@ -63,6 +63,7 @@ class PartialDataset(Dataset):
         """Create dataset from given classes. The samples are taken from source dataset.
         """
         labels = cls.get_labels(source)
+        classes = classes.copy()
         ids = np_a_in_b(labels, classes)
         return cls(source, ids, train=train, train_transform=train_transform, test_transform=test_transform,
                    classes=classes)

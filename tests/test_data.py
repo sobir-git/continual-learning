@@ -1,14 +1,16 @@
+from collections import Counter
 from functools import reduce
 from random import shuffle
 from types import SimpleNamespace
 
 import numpy as np
 import torchvision
-from torch.utils.data import SequentialSampler, RandomSampler
+from torch.utils.data import SequentialSampler, RandomSampler, DataLoader
 from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision.transforms import Compose, ToTensor
 
 from exp2.data import ContinuousRandomSampler, DualBatchSampler, create_loader, PartialDataset, CIData
+from exp2.memory import Memory
 
 
 def test_continous_random_sampler():
@@ -92,9 +94,105 @@ def cifar100_10_test_data():
 def test_get_phase_data():
     cidata = cifar100_10_test_data()
     class_order = cidata.class_order
+    cumul_classes = []
     for phase in range(1, 11):
         trainset, testset, cumul_testset = cidata.get_phase_data(phase)
         assert len(trainset.labels) == 5000
         assert len(testset.labels) == 1000
         assert set(testset.labels) == set(trainset.labels) == set(class_order[(phase - 1) * 10:phase * 10])
         assert set(cumul_testset.labels) == set(class_order[:phase * 10])
+        assert trainset.classes == testset.classes == class_order[(phase - 1) * 10: phase * 10]
+        cumul_classes.extend(trainset.classes)
+        assert cumul_testset.classes == cumul_classes
+        assert cumul_testset.source == testset.source == cidata.test_source
+        assert trainset.source == cidata.train_source
+
+
+def test_partial_dataset():
+    source = CIFAR10(root='../data', train=True)
+    classes = [2, 3, 4]
+    transform = ToTensor()
+    dataset = PartialDataset.from_classes(source, train=True, train_transform=transform, test_transform=transform,
+                                          classes=classes)
+    source_labels = np.asarray(source.targets)
+
+    # dataset ids only belong to selected classes
+    assert all(source_labels[i] in classes for i in dataset.ids)
+
+    # all ids belonging to selected classes are present
+    cc = Counter(source_labels)
+    assert len(dataset) == sum(cc[cls] for cls in classes)
+
+    # ====== dataloaders ======
+    for shuffle in [True, False]:
+        loader = DataLoader(dataset, batch_size=32, shuffle=shuffle)
+        all_labels = []
+        all_ids = []
+        all_inputs = []
+        for inputs, labels, ids in loader:
+            all_labels.extend(labels)
+            all_ids.extend(ids)
+            all_inputs.append(inputs)
+        all_inputs = np.concatenate(all_inputs, axis=0)
+
+        sorting = np.argsort(all_ids)
+        all_ids = np.array(all_ids)[sorting]
+        all_inputs = all_inputs[sorting]
+        all_labels = np.array(all_labels)[sorting]
+        original_inputs = np.stack([transform(dataset.source[i][0]) for i in sorted(dataset.ids)])
+
+        assert np.allclose(all_ids, sorted(dataset.ids))
+        assert np.allclose(all_labels, source_labels[all_ids])
+        assert np.allclose(all_inputs, original_inputs)
+
+
+def _gather_batches(loader):
+    all_inputs = []
+    all_labels = []
+    all_ids = []
+    for inputs, labels, ids in loader:
+        all_inputs.append(inputs)
+        all_labels.append(labels)
+        all_ids.append(ids)
+
+    return np.concatenate(all_inputs), np.concatenate(all_labels), np.concatenate(all_ids)
+
+
+def are_loaders_same(loader0, loader1):
+    data0 = _gather_batches(loader0)
+    data1 = _gather_batches(loader1)
+
+    def _sort_data(data):
+        data = list(data)
+        sorted_ids = np.argsort(data[2])
+        data[0] = data[0][sorted_ids]
+        data[1] = data[1][sorted_ids]
+        data[2] = data[2][sorted_ids]
+        return data
+
+    data0 = _sort_data(data0)
+    data1 = _sort_data(data1)
+
+    for i, j in zip(data0, data1):
+        assert np.allclose(i, j)
+
+    return True
+
+
+def test_dataloader_with_partial_dataset():
+    source = CIFAR10(root='../data', train=True)
+    classes = [0, 1]
+    transform = ToTensor()
+    dataset = PartialDataset.from_classes(source, train=True, train_transform=transform, test_transform=transform,
+                                          classes=classes)
+    mem = Memory(len(dataset), source=source, train_transform=transform, test_transform=transform)
+    mem.update(dataset.ids, new_classes=dataset.classes)
+    mem_dataset = mem.get_dataset(train=True)
+
+    assert sorted(mem_dataset.ids) == sorted(dataset.ids)
+
+    loader0 = DataLoader(dataset, shuffle=False)
+    loader1 = DataLoader(mem_dataset, shuffle=False)
+    dataset.ids = dataset.ids.copy()
+
+    assert are_loaders_same(loader0, loader1)
