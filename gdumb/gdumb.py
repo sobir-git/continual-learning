@@ -129,7 +129,7 @@ def maybe_reset_model_weights(config, model):
         final.weight.fill_(0.0)
     elif config.reset_weights == 'all':
         n_classes = final.out_features
-        model = create_model(config, n_classes)
+        model = create_model(config, n_classes).to(DEVICE)
     else:
         raise ValueError(f'config.reset_weights should be one of "none", "output", and "all".')
     return model
