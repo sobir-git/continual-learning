@@ -36,7 +36,7 @@ def create_model(config, n_classes):
 
 
 @torch.no_grad()
-def test_model(config, model, dataset, logger: Logger, prefx='test'):
+def evaluate_model(config, model, dataset, logger: Logger, log_prefx='test'):
     model.eval()
     criterion = torch.nn.CrossEntropyLoss()
     loader = DataLoader(dataset, batch_size=config.batch_size, shuffle=False)
@@ -53,7 +53,7 @@ def test_model(config, model, dataset, logger: Logger, prefx='test'):
         loss_meter.update(loss, batch_size)
         acc_meter.update(torch.eq(predictions, labels).type(torch.FloatTensor).mean(), batch_size)
 
-    logger.log({prefx + '_loss': loss_meter.avg, prefx + '_acc': acc_meter.avg})
+    logger.log({log_prefx + '_loss': loss_meter.avg, log_prefx + '_acc': acc_meter.avg})
     return loss_meter.avg
 
 
@@ -94,7 +94,7 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
 
         # validate
         if len(valset) > 0:
-            val_loss = test_model(config, model, valset, logger, prefx='val')
+            val_loss = evaluate_model(config, model, valset, logger, log_prefx='val')
             model.checkpoint(optimizer, val_loss, epoch=ep)
             stopper.update(val_loss)
 
@@ -108,6 +108,31 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
         if stopper.do_stop():
             console_logger.info(f'Early stopping at epoch: {ep}')
             return
+
+
+def get_final_layer(model) -> torch.nn.Linear:
+    assert isinstance(model, torch.nn.Sequential)
+    while not isinstance(model[-1], torch.nn.Linear):
+        model = model[-1]
+    return model[-1]
+
+
+@torch.no_grad()
+def maybe_reset_model_weights(config, model):
+    if config.reset_weights == 'none':
+        return model
+
+    console_logger.info('Resetting model weights')
+    final = get_final_layer(model)
+    if config.reset_weights == 'output':
+        # get final layer
+        final.weight.fill_(0.0)
+    elif config.reset_weights == 'all':
+        n_classes = final.out_features
+        model = create_model(config, n_classes)
+    else:
+        raise ValueError(f'config.reset_weights should be one of "none", "output", and "all".')
+    return model
 
 
 def run(config):
@@ -124,6 +149,7 @@ def run(config):
     logger.log({'class_order': data.class_order})
 
     for phase in range(1, config.n_phases + 1):
+        do_train = config.phase is None or config.phase == phase
         console_logger.info(f'== Starting phase {phase} ==')
         logger.pin('phase', phase)
 
@@ -136,16 +162,22 @@ def run(config):
         memory_manager.log_memory_sizes()
 
         # train model on memory samples
-        console_logger.info(f'Training the model')
-        trainset = memory_manager['train'].get_dataset(train=True)
-        valset = memory_manager['val'].get_dataset(train=False)
-        train_model(config, model, trainset, valset, logger)
+        if do_train:
+            model = maybe_reset_model_weights(config, model)
 
-        # test the model
-        console_logger.info('Testing the model')
-        model.load_best()
-        test_model(config, model, cumul_testset, logger)
-        logger.commit()
+            console_logger.info(f'Training the model')
+            trainset = memory_manager['train'].get_dataset(train=True)
+            valset = memory_manager['val'].get_dataset(train=False)
+            train_model(config, model, trainset, valset, logger)
+
+            # test the model
+            console_logger.info('Testing the model')
+            model.load_best()
+            evaluate_model(config, model, cumul_testset, logger)
+            logger.commit()
+
+            if config.phase == phase:
+                return
 
 
 if __name__ == '__main__':
