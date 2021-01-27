@@ -57,8 +57,20 @@ def evaluate_model(config, model, dataset, logger: Logger, log_prefx='test'):
     return loss_meter.avg
 
 
+def create_optimizer(config, model):
+    if config.faster_output_learning_rate:
+        final = get_final_layer(model)
+        all_except_final = list(filter(lambda p: all(p is not i for i in final.parameters()), model.parameters()))
+        optimizer = torch.optim.SGD([{'params': all_except_final},
+                                     {'params': final.parameters(), 'lr': config.lr * 10}],
+                                    momentum=0.9, lr=config.lr)
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, momentum=0.9)
+    return optimizer
+
+
 def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: PartialDataset, logger: Logger):
-    optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, momentum=0.9)
+    optimizer = create_optimizer(config, model)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
     criterion = torch.nn.CrossEntropyLoss()
     train_loader = DataLoader(trainset, batch_size=config.batch_size, shuffle=True,

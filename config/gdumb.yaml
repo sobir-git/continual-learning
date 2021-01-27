@@ -26,3 +26,4 @@ cutmix_prob: 0.5
 cutmix_alpha: 1.0
 phase: null
 reset_weights: 'output'  # reset weights before each phase; choices: 'none', 'output', 'all'
+faster_output_learning_rate: false  # use higher learning rate (x10) for the output layer
