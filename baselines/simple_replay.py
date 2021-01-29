@@ -150,6 +150,12 @@ def maybe_reset_model_weights(config, model):
     return model
 
 
+def get_dataset_weight(dataset):
+    if len(dataset) == 0:
+        return 0
+    return len(dataset.classes) / len(dataset)
+
+
 def run(config):
     logger = Logger(config, console_logger=console_logger)
     console_logger.info('config:' + str(config))
@@ -201,8 +207,7 @@ def run(config):
                                              shuffle=True)
                 val_loaders = [create_loader(config, trainset_val),
                                create_loader(config, memory_valset)]
-                weights = [len(trainset_val.classes) / len(trainset_val),
-                           len(memory_valset.classes) / len(memory_valset)]
+                weights = [get_dataset_weight(trainset_val), get_dataset_weight(memory_valset)]
 
             console_logger.info(f'Training the model')
             train_model(config, model, train_loader, val_loaders, val_weights=weights, logger=logger)
