@@ -1,4 +1,5 @@
 import argparse
+from typing import List
 
 import numpy as np
 import torch
@@ -8,7 +9,7 @@ from torch.utils.data import DataLoader
 import utils
 from exp2.classifier import Checkpoint
 from exp2.config import load_configs
-from exp2.data import prepare_data, PartialDataset
+from exp2.data import prepare_data, create_loader
 from exp2.feature_extractor import load_pretrained
 from exp2.memory import MemoryManagerBasic
 from exp2.models import model_mapping
@@ -36,22 +37,25 @@ def create_model(config, n_classes):
 
 
 @torch.no_grad()
-def evaluate_model(config, model, dataset, logger: Logger, log_prefx='test'):
+def evaluate_model(config, logger, model, dataloaders: List[DataLoader], weights: List = None, log_prefx='test'):
+    """Evaluates the model on multiple dataloaders with different weights."""
     model.eval()
     criterion = torch.nn.CrossEntropyLoss()
-    loader = DataLoader(dataset, batch_size=config.batch_size, shuffle=False)
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
+    if weights is None:
+        weights = [1] * len(dataloaders)
 
-    for inputs, labels, _ in loader:
-        inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
-        outputs = model(inputs)
-        loss = criterion(outputs, labels)
-        predictions = torch.argmax(outputs, 1)
+    for w, loader in zip(weights, dataloaders):
+        for inputs, labels, _ in loader:
+            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            predictions = torch.argmax(outputs, 1)
 
-        batch_size = len(inputs)
-        loss_meter.update(loss, batch_size)
-        acc_meter.update(torch.eq(predictions, labels).type(torch.FloatTensor).mean(), batch_size)
+            batch_size = len(inputs)
+            loss_meter.update(loss, batch_size * w)
+            acc_meter.update(torch.eq(predictions, labels).type(torch.FloatTensor).mean(), batch_size * w)
 
     logger.log({log_prefx + '_loss': loss_meter.avg, log_prefx + '_acc': acc_meter.avg})
     return loss_meter.avg
@@ -69,12 +73,11 @@ def create_optimizer(config, model):
     return optimizer
 
 
-def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: PartialDataset, logger: Logger):
+def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders: List[DataLoader],
+                val_weights: List = None, logger: Logger = None):
     optimizer = create_optimizer(config, model)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
     criterion = torch.nn.CrossEntropyLoss()
-    train_loader = DataLoader(trainset, batch_size=config.batch_size, shuffle=True,
-                              pin_memory=config.torch['pin_memory'], num_workers=config.torch['num_workers'])
     non_blocking = config.torch['non_blocking']
     stopper = TrainingStopper(config)
     model.remove_checkpoint()
@@ -105,8 +108,8 @@ def train_model(config, model: Checkpoint, trainset: PartialDataset, valset: Par
         logger.log({'train_loss': loss_meter.avg, 'epoch': ep})
 
         # validate
-        if len(valset) > 0:
-            val_loss = evaluate_model(config, model, valset, logger, log_prefx='val')
+        if val_loaders is not None:
+            val_loss = evaluate_model(config, logger, model, val_loaders, val_weights, log_prefx='val')
             model.checkpoint(optimizer, val_loss, epoch=ep)
             stopper.update(val_loss)
 
@@ -168,24 +171,55 @@ def run(config):
         # get the new samples
         trainset, testset, cumul_testset = data.get_phase_data(phase)
 
-        # update memory
-        console_logger.info('Updating memory')
-        memory_manager.update_memories(trainset)
-        memory_manager.log_memory_sizes()
+        # GDumb updates memory before training
+        if config.method == 'gdumb':
+            console_logger.info('Updating memory')
+            memory_manager.update_memories(trainset)
+            memory_manager.log_memory_sizes()
 
         # train model on memory samples
         if do_train:
             model = maybe_reset_model_weights(config, model)
 
+            memory_trainset = memory_manager['train'].get_dataset(train=True)
+            memory_valset = memory_manager['val'].get_dataset(train=False)
+
+            weights = None
+            trainset_train = None
+            trainset_val = None
+            # prepare train and validation sets
+            if config.method == 'gdumb':
+                # GDumb only trains on memory samples
+                train_loader = create_loader(config, memory_trainset, shuffle=True)
+                val_loaders = [create_loader(config, memory_valset)]
+            else:
+                # Simple replay, trains on current data + memory samples
+                trainset_train, trainset_val = trainset.split(test_size=config.val_size)
+                if phase == 1:
+                    memory_trainset = None
+                train_loader = create_loader(config, main_dataset=trainset_train, memoryset=memory_trainset,
+                                             shuffle=True)
+                val_loaders = [create_loader(config, trainset_val),
+                               create_loader(config, memory_valset)]
+                weights = [len(trainset_val.classes), len(memory_valset.classes)]
+
             console_logger.info(f'Training the model')
-            trainset = memory_manager['train'].get_dataset(train=True)
-            valset = memory_manager['val'].get_dataset(train=False)
-            train_model(config, model, trainset, valset, logger)
+            train_model(config, model, train_loader, val_loaders, val_weights=weights, logger=logger)
+
+            # Simple replay updates memory
+            if config.method == 'simple_replay':
+                console_logger.info('Updating memory')
+                # only trained samples can go into train memory to maintain unbiased validation in the future
+                memory_manager.update_memories(trainset_train, memories=[memory_manager['train']])
+                memory_manager.update_memories(trainset_val, memories=[memory_manager['val']])
+                memory_manager.log_memory_sizes()
 
             # test the model
             console_logger.info('Testing the model')
             model.load_best()
-            evaluate_model(config, model, cumul_testset, logger)
+
+            cumul_test_loader = create_loader(config, cumul_testset)
+            evaluate_model(config, logger, model, dataloaders=[cumul_test_loader])
             logger.commit()
 
             if config.phase == phase:

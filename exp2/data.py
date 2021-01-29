@@ -236,6 +236,10 @@ class DualBatchSampler(BatchSampler):
 
 
 def create_loader(config, main_dataset: PartialDataset, memoryset: PartialDataset = None, shuffle=True):
+    """Creates dataloader from two datasets. The resulting dataloader will loop through main_dataset
+    while also randomly picking from the second dataset (doing its best without replacement). The datalaoder
+    reaches the end once the main dataset is finished. If the second dataset comes short, it will be looped again.
+    """
     if len(main_dataset) == 0:  # in this case we don't shuffle because it causes an error in Dataloader code
         assert memoryset is None or len(memoryset) == 0, "Got main dataset empty but memory non-empty"
         return DataLoader(main_dataset, batch_size=config.batch_size, shuffle=False)

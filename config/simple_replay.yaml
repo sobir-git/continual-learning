@@ -1,0 +1,30 @@
+dataset: CIFAR100
+n_phases: 10
+n_classes_per_phase: 10
+memory_size: 2000
+val_size: 0.2
+batch_size: 128
+epochs: 100
+lr: 0.001
+model: "efficientnet-b0"
+resize_input: 224
+download: true
+torch:
+  num_workers: 3
+  pin_memory: true
+  non_blocking: true
+datadir: ../data
+class_order_seed: -1
+lr_step_size: 5
+gamma: 0.95
+pretrained: true  # use pretrained model
+clone_head: true  # use weights from head rather than random initialization
+split_pos: -1  # place where to split pretrained model into feature extractor and head
+epochs_tol: 10
+regularization: cutmix
+cutmix_prob: 0.5
+cutmix_alpha: 1.0
+phase: null
+reset_weights: 'output'  # reset weights before each phase; choices: 'none', 'output', 'all'
+faster_output_learning_rate: false  # use higher learning rate (x10) for the output layer
+method: "gdumb"
