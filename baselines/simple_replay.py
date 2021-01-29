@@ -201,8 +201,8 @@ def run(config):
                                              shuffle=True)
                 val_loaders = [create_loader(config, trainset_val),
                                create_loader(config, memory_valset)]
-                weights = [len(trainset_val.classes) * len(trainset_val),
-                           len(memory_valset.classes) * len(memory_valset)]
+                weights = [len(trainset_val.classes) / len(trainset_val),
+                           len(memory_valset.classes) / len(memory_valset)]
 
             console_logger.info(f'Training the model')
             train_model(config, model, train_loader, val_loaders, val_weights=weights, logger=logger)
