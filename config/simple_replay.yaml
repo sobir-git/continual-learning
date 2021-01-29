@@ -4,6 +4,7 @@ n_classes_per_phase: 10
 memory_size: 2000
 val_size: 0.2
 batch_size: 128
+batch_memory_samples: 64
 epochs: 100
 lr: 0.001
 model: "efficientnet-b0"

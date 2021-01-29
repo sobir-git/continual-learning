@@ -183,7 +183,7 @@ class MemoryManagerBasic:
             shuffled_ids = np.random.permutation(dataset.ids)
             split_sizes = [int(len(dataset) * m.max_size / total_sz) for m in memories]
             cumul_sz = 0
-            for memory, sz in zip(self.memories, split_sizes):
+            for memory, sz in zip(memories, split_sizes):
                 memory.update(ids=shuffled_ids[cumul_sz:cumul_sz + sz], new_classes=dataset.classes)
                 cumul_sz += sz
 
