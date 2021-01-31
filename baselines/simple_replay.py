@@ -37,7 +37,7 @@ def create_model(config, n_classes):
 
 
 @torch.no_grad()
-def evaluate_model(config, logger, model, dataloaders: List[DataLoader], weights: List = None, log_prefx='test'):
+def evaluate_model(config, logger, model, mask, dataloaders: List[DataLoader], weights: List = None, log_prefx='test'):
     """Evaluates the model on multiple dataloaders with different weights."""
     model.eval()
     criterion = torch.nn.CrossEntropyLoss()
@@ -46,10 +46,12 @@ def evaluate_model(config, logger, model, dataloaders: List[DataLoader], weights
     if weights is None:
         weights = [1] * len(dataloaders)
 
+    mask = mask.to(DEVICE)
     for w, loader in zip(weights, dataloaders):
         for inputs, labels, _ in loader:
             inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
             outputs = model(inputs)
+            outputs.data[:, ~mask] = -1e31
             loss = criterion(outputs, labels)
             predictions = torch.argmax(outputs, 1)
 
@@ -73,7 +75,7 @@ def create_optimizer(config, model):
     return optimizer
 
 
-def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders: List[DataLoader],
+def train_model(config, model: Checkpoint, mask, train_loader: DataLoader, val_loaders: List[DataLoader],
                 val_weights: List = None, logger: Logger = None):
     optimizer = create_optimizer(config, model)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
@@ -81,6 +83,7 @@ def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders
     non_blocking = config.torch['non_blocking']
     stopper = TrainingStopper(config)
     model.remove_checkpoint()
+    mask = mask.to(DEVICE)
     for ep in range(config.epochs):
         model.train()
         loss_meter = AverageMeter()
@@ -95,6 +98,7 @@ def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders
 
             # Forward, backward passes then step
             outputs = model(inputs)
+            outputs.data[:, ~mask] = -1e31
             loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(outputs, labels_b) \
                 if do_cutmix \
                 else criterion(outputs, labels)
@@ -109,7 +113,7 @@ def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders
 
         # validate
         if val_loaders is not None:
-            val_loss, val_acc = evaluate_model(config, logger, model, val_loaders, val_weights, log_prefx='val')
+            val_loss, val_acc = evaluate_model(config, logger, model, mask, val_loaders, val_weights, log_prefx='val')
             val_metric = val_loss if config.val_metric == 'loss' else -val_acc
             model.checkpoint(optimizer, val_metric, epoch=ep)
             stopper.update(val_metric)
@@ -167,7 +171,9 @@ def run(config):
     memory_manager = MemoryManagerBasic(sizes=[train_sz, val_sz], source=data.train_source,
                                         train_transform=data.train_transform,
                                         test_transform=data.test_transform, names=['train', 'val'])
-    model = create_model(config, len(data.class_order)).to(DEVICE)
+    n_classes = len(data.class_order)
+    model = create_model(config, n_classes=n_classes).to(DEVICE)
+    mask = torch.zeros(n_classes, dtype=torch.bool)
     logger.log({'class_order': data.class_order})
 
     for phase in range(1, config.n_phases + 1):
@@ -177,6 +183,9 @@ def run(config):
 
         # get the new samples
         trainset, testset, cumul_testset = data.get_phase_data(phase)
+
+        # update mask
+        mask[trainset.classes] = 1
 
         # GDumb updates memory before training
         if config.method == 'gdumb':
@@ -211,7 +220,7 @@ def run(config):
                 weights = [get_dataset_weight(trainset_val), get_dataset_weight(memory_valset)]
 
             console_logger.info(f'Training the model')
-            train_model(config, model, train_loader, val_loaders, val_weights=weights, logger=logger)
+            train_model(config, model, mask, train_loader, val_loaders, val_weights=weights, logger=logger)
 
             # Simple replay updates memory
             if config.method == 'simple_replay':
@@ -226,7 +235,7 @@ def run(config):
             model.load_best()
 
             cumul_test_loader = create_loader(config, cumul_testset)
-            evaluate_model(config, logger, model, dataloaders=[cumul_test_loader])
+            evaluate_model(config, logger, model, mask, dataloaders=[cumul_test_loader])
             logger.commit()
 
             if config.phase == phase:
