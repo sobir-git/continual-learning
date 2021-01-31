@@ -306,7 +306,7 @@ def run(config):
                 dataset_for_bic = memory_manager['val'].get_dataset(train=True)
                 loader_for_bic = create_loader(config, dataset_for_bic)
                 train_bic(config, model, mask, bic_mask, loader_for_bic, logger)
-                console_logger.info(f'BiC parameters: {model.BiC["alpha"], model.BiC["beta"]}')
+                console_logger.info(f'BiC parameters: {model.BiC["alpha"].item(), model.BiC["beta"].item()}')
 
             # test the model
             console_logger.info('Testing the model')
