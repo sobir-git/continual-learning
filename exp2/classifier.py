@@ -74,7 +74,7 @@ class Checkpoint(nn.Module):
         d = torch.load(checkpoint_file)
         self._min_val_loss = d['val_loss']
         self.load_state_dict(d['state_dict'])
-        console_logger.debug('Loaded checkpoint %s, (from epoch %s)', checkpoint_file, d['epoch'])
+        console_logger.debug('Loaded checkpoint (from epoch %s): %s', d['epoch'], checkpoint_file)
         return d
 
     def load_best(self):

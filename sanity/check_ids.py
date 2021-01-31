@@ -26,8 +26,12 @@ ids_in_file = OrderedDict()
 for filename in sorted(os.listdir(folder)):
     path = folder + '/' + filename
     if os.path.isfile(path) and filename.endswith('.txt'):
-        ids = read_ids(path)
-        ids_in_file[filename] = ids
+        try:
+            ids = read_ids(path)
+        except SyntaxError:
+            print(f'Error parsing {path}')
+        else:
+            ids_in_file[filename] = ids
 
 # print sizes
 for name, ids in ids_in_file.items():

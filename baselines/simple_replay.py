@@ -110,8 +110,9 @@ def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders
         # validate
         if val_loaders is not None:
             val_loss, val_acc = evaluate_model(config, logger, model, val_loaders, val_weights, log_prefx='val')
-            model.checkpoint(optimizer, -val_acc, epoch=ep)
-            stopper.update(val_acc)
+            val_metric = val_loss if config.val_metric == 'loss' else -val_acc
+            model.checkpoint(optimizer, val_metric, epoch=ep)
+            stopper.update(val_metric)
 
         # schedule learning rate
         lr_scheduler.step()
