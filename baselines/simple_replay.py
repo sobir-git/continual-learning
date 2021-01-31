@@ -4,6 +4,7 @@ from typing import List
 import numpy as np
 import torch
 import wandb
+from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
 
 import utils
@@ -37,7 +38,8 @@ def create_model(config, n_classes):
 
 
 @torch.no_grad()
-def evaluate_model(config, logger, model, mask, dataloaders: List[DataLoader], weights: List = None, log_prefx='test'):
+def evaluate_model(config, logger, model, mask, dataloaders: List[DataLoader], weights: List = None, log_prefx='test',
+                   class_order=None, log_confusion_matrix=False):
     """Evaluates the model on multiple dataloaders with different weights."""
     model.eval()
     criterion = torch.nn.CrossEntropyLoss()
@@ -45,6 +47,9 @@ def evaluate_model(config, logger, model, mask, dataloaders: List[DataLoader], w
     acc_meter = AverageMeter()
     if weights is None:
         weights = [1] * len(dataloaders)
+
+    all_predictions = []
+    all_labels = []
 
     mask = mask.to(DEVICE)
     for w, loader in zip(weights, dataloaders):
@@ -54,11 +59,18 @@ def evaluate_model(config, logger, model, mask, dataloaders: List[DataLoader], w
             outputs.data[:, ~mask] = -1e31
             loss = criterion(outputs, labels)
             predictions = torch.argmax(outputs, 1)
+            all_predictions.append(predictions)
+            all_labels.append(labels)
 
             batch_size = len(inputs)
             loss_meter.update(loss, batch_size * w)
             acc_meter.update(torch.eq(predictions, labels).type(torch.FloatTensor).mean(), batch_size * w)
 
+    if log_confusion_matrix:
+        all_predictions = torch.cat(all_predictions).cpu()
+        all_labels = torch.cat(all_labels).cpu()
+        cm = confusion_matrix(all_labels, all_predictions, labels=class_order)
+        logger.log_confusion_matrix(cm, labels=class_order)
     logger.log({log_prefx + '_loss': loss_meter.avg, log_prefx + '_acc': acc_meter.avg})
     return loss_meter.avg, acc_meter.avg
 
@@ -235,7 +247,8 @@ def run(config):
             model.load_best()
 
             cumul_test_loader = create_loader(config, cumul_testset)
-            evaluate_model(config, logger, model, mask, dataloaders=[cumul_test_loader])
+            evaluate_model(config, logger, model, mask, dataloaders=[cumul_test_loader], class_order=data.class_order,
+                           log_confusion_matrix=True)
             logger.commit()
 
             if config.phase == phase:
