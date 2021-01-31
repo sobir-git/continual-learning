@@ -18,6 +18,9 @@ datadir: ../data
 class_order_seed: -1
 lr_step_size: 5
 gamma: 0.95
+lr_scheduler: exp
+lr_patience: 5  # number of epochs without improvement before lr is reduced (multiplied by gamma)
+min_lr: 0.0001
 pretrained: true  # use pretrained model
 clone_head: true  # use weights from head rather than random initialization
 split_pos: -1  # place where to split pretrained model into feature extractor and head

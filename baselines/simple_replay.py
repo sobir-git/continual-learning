@@ -6,6 +6,7 @@ import torch
 import wandb
 from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
+import torch.optim.lr_scheduler as sch
 
 import utils
 from exp2.classifier import Checkpoint
@@ -138,13 +139,38 @@ def train_bic(config, model, mask, bic_mask, loader: DataLoader, logger):
     model.BiC = {'bic_mask': bic_mask, 'alpha': alpha, 'beta': beta}
 
 
+def create_lr_scheduler(config, optimizer):
+    if config.lr_scheduler == 'exp':
+        return sch.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
+    elif config.lr_scheduler == 'reduce_on_plateu':
+        return sch.ReduceLROnPlateau(optimizer, 'min', factor=config.gamma,
+                                     patience=config.lr_patience,
+                                     verbose=True, min_lr=0.00001)
+    else:
+        raise ValueError(f"config.lr_scheduler be one of 'exp', 'reduce_on_plateu' but got {config.lr_scheduler}")
+
+
+def get_last_learning_rate(lr_scheduler):
+    try:
+        return lr_scheduler.get_last_lr()[0]
+    except AttributeError:
+        pass
+
+    try:
+        return lr_scheduler._last_lr[0]
+    except AttributeError:
+        pass
+
+    return lr_scheduler.optimizer.param_groups[0]['lr']
+
+
 def train_model(config, model: Checkpoint, mask, train_loader: DataLoader, val_loaders: List[DataLoader],
                 val_weights: List = None, logger: Logger = None):
     if hasattr(model, 'BiC'):
         del model.BiC
 
     optimizer = create_optimizer(config, model)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
+    lr_scheduler = create_lr_scheduler(config, optimizer)
     criterion = torch.nn.CrossEntropyLoss()
     non_blocking = config.torch['non_blocking']
     stopper = TrainingStopper(config)
@@ -184,16 +210,21 @@ def train_model(config, model: Checkpoint, mask, train_loader: DataLoader, val_l
             model.checkpoint(optimizer, val_metric, epoch=ep)
             stopper.update(val_metric)
 
-        # schedule learning rate
-        lr_scheduler.step()
-        lr = lr_scheduler.get_last_lr()[0]
-        logger.log({'lr': lr})
+            # schedule learning rate
+            if not isinstance(lr_scheduler, sch.ReduceLROnPlateau):
+                lr_scheduler.step()
+            else:
+                lr_scheduler.step(val_metric)
 
+        logger.log({'lr': get_last_learning_rate(lr_scheduler)})
         logger.commit()
 
         if stopper.do_stop():
             console_logger.info(f'Early stopping at epoch: {ep}')
-            return
+            break
+
+    # Training finished, load best checkpoint
+    model.load_best()
 
 
 def get_final_layer(model) -> torch.nn.Linear:
@@ -289,6 +320,7 @@ def run(config):
 
             console_logger.info(f'Training the model')
             train_model(config, model, mask, train_loader, val_loaders, val_weights=weights, logger=logger)
+            config.update({'lr': max(config.min_lr, config.lr * 0.5)}, allow_val_change=True)
 
             # Simple replay updates memory
             if config.method == 'simple_replay':
@@ -310,7 +342,6 @@ def run(config):
 
             # test the model
             console_logger.info('Testing the model')
-            model.load_best()
 
             cumul_test_loader = create_loader(config, cumul_testset)
             evaluate_model(config, logger, model, mask, dataloaders=[cumul_test_loader], class_order=data.class_order,
