@@ -51,12 +51,19 @@ def evaluate_model(config, logger, model, mask, dataloaders: List[DataLoader], w
     all_predictions = []
     all_labels = []
 
+    bic = None
+    if hasattr(model, 'BiC'):
+        console_logger.info('Model has BiC layer.')
+        bic = model.BiC
+
     mask = mask.to(DEVICE)
     for w, loader in zip(weights, dataloaders):
         for inputs, labels, _ in loader:
             inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
             outputs = model(inputs)
             outputs.data[:, ~mask] = -1e31
+            if bic:
+                outputs = apply_bic(outputs, bic['alpha'], bic['beta'], bic['bic_mask'])
             loss = criterion(outputs, labels)
             predictions = torch.argmax(outputs, 1)
             all_predictions.append(predictions)
@@ -87,8 +94,55 @@ def create_optimizer(config, model):
     return optimizer
 
 
+def apply_bic(outputs, alpha, beta, bic_mask):
+    outputs = outputs.clone()
+    outputs[:, bic_mask] = outputs[:, bic_mask] * alpha + beta
+    return outputs
+
+
+def train_bic(config, model, mask, bic_mask, loader: DataLoader, logger):
+    # BiC parameters
+    alpha = torch.tensor([0.], dtype=torch.float32, requires_grad=True)
+    beta = torch.tensor([0.], dtype=torch.float32, requires_grad=True)
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(params=[alpha, beta], lr=config.bic_lr, momentum=0.9)
+    mask = mask.to(DEVICE)
+    bic_mask = bic_mask.to(DEVICE)
+    non_blocking = config.torch['non_blocking']
+
+    model.eval()
+    for ep in range(config.bic_epochs):
+        loss_meter = AverageMeter()
+
+        for inputs, labels, _ in loader:
+            inputs, labels = inputs.to(DEVICE, non_blocking=non_blocking), labels.to(DEVICE, non_blocking=non_blocking)
+
+            # Forward, backward passes then step
+            with torch.no_grad():
+                outputs = model(inputs)
+                outputs.data[:, ~mask] = -1e31
+
+            # apply BiC layer
+            outputs = apply_bic(outputs, alpha, beta, bic_mask)
+            loss = criterion(outputs, labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            batch_size = len(inputs)
+            loss_meter.update(loss, batch_size)
+        logger.log({'bic_train_loss': loss_meter.avg, 'bic_epoch': ep})
+        logger.commit()
+
+    model.BiC = {'bic_mask': bic_mask, 'alpha': alpha, 'beta': beta}
+
+
 def train_model(config, model: Checkpoint, mask, train_loader: DataLoader, val_loaders: List[DataLoader],
                 val_weights: List = None, logger: Logger = None):
+    if hasattr(model, 'BiC'):
+        del model.BiC
+
     optimizer = create_optimizer(config, model)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
     criterion = torch.nn.CrossEntropyLoss()
@@ -186,6 +240,8 @@ def run(config):
     n_classes = len(data.class_order)
     model = create_model(config, n_classes=n_classes).to(DEVICE)
     mask = torch.zeros(n_classes, dtype=torch.bool)
+    bic_mask = None
+
     logger.log({'class_order': data.class_order})
 
     for phase in range(1, config.n_phases + 1):
@@ -198,6 +254,9 @@ def run(config):
 
         # update mask
         mask[trainset.classes] = 1
+        if config.apply_bic:
+            bic_mask = torch.zeros(n_classes, dtype=torch.bool)
+            bic_mask[trainset.classes] = 1
 
         # GDumb updates memory before training
         if config.method == 'gdumb':
@@ -241,6 +300,13 @@ def run(config):
                 memory_manager.update_memories(trainset_train, memories=[memory_manager['train']])
                 memory_manager.update_memories(trainset_val, memories=[memory_manager['val']])
                 memory_manager.log_memory_sizes()
+
+            # Train BiC
+            if phase > 1 and config.apply_bic:
+                console_logger.info('Training BiC')
+                dataset_for_bic = memory_manager['val'].get_dataset(train=True)
+                loader_for_bic = create_loader(config, dataset_for_bic)
+                train_bic(config, model, mask, bic_mask, loader_for_bic, logger)
 
             # test the model
             console_logger.info('Testing the model')

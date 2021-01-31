@@ -30,3 +30,6 @@ reset_weights: 'output'  # reset weights before each phase; choices: 'none', 'ou
 faster_output_learning_rate: false  # use higher learning rate (x10) for the output layer
 val_metric: "loss"
 method: "gdumb"
+apply_bic: false
+bic_lr: 0.001
+bic_epochs: 10
