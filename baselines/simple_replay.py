@@ -102,7 +102,7 @@ def apply_bic(outputs, alpha, beta, bic_mask):
 
 def train_bic(config, model, mask, bic_mask, loader: DataLoader, logger):
     # BiC parameters
-    alpha = torch.tensor([0.], dtype=torch.float32, requires_grad=True, device=DEVICE)
+    alpha = torch.tensor([1.], dtype=torch.float32, requires_grad=True, device=DEVICE)
     beta = torch.tensor([0.], dtype=torch.float32, requires_grad=True, device=DEVICE)
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(params=[alpha, beta], lr=config.bic_lr, momentum=0.9)
