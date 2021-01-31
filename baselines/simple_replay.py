@@ -254,9 +254,6 @@ def run(config):
 
         # update mask
         mask[trainset.classes] = 1
-        if config.apply_bic:
-            bic_mask = torch.zeros(n_classes, dtype=torch.bool)
-            bic_mask[trainset.classes] = 1
 
         # GDumb updates memory before training
         if config.method == 'gdumb':
@@ -303,10 +300,13 @@ def run(config):
 
             # Train BiC
             if phase > 1 and config.apply_bic:
+                bic_mask = torch.zeros(n_classes, dtype=torch.bool)
+                bic_mask[trainset.classes] = 1
                 console_logger.info('Training BiC')
                 dataset_for_bic = memory_manager['val'].get_dataset(train=True)
                 loader_for_bic = create_loader(config, dataset_for_bic)
                 train_bic(config, model, mask, bic_mask, loader_for_bic, logger)
+                console_logger.info(f'BiC parameters: {model.BiC["alpha"], model.BiC["beta"]}')
 
             # test the model
             console_logger.info('Testing the model')
