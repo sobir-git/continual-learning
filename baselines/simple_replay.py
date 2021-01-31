@@ -58,7 +58,7 @@ def evaluate_model(config, logger, model, dataloaders: List[DataLoader], weights
             acc_meter.update(torch.eq(predictions, labels).type(torch.FloatTensor).mean(), batch_size * w)
 
     logger.log({log_prefx + '_loss': loss_meter.avg, log_prefx + '_acc': acc_meter.avg})
-    return loss_meter.avg
+    return loss_meter.avg, acc_meter.avg
 
 
 def create_optimizer(config, model):
@@ -109,9 +109,9 @@ def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders
 
         # validate
         if val_loaders is not None:
-            val_loss = evaluate_model(config, logger, model, val_loaders, val_weights, log_prefx='val')
-            model.checkpoint(optimizer, val_loss, epoch=ep)
-            stopper.update(val_loss)
+            val_loss, val_acc = evaluate_model(config, logger, model, val_loaders, val_weights, log_prefx='val')
+            model.checkpoint(optimizer, -val_acc, epoch=ep)
+            stopper.update(val_acc)
 
         # schedule learning rate
         lr_scheduler.step()

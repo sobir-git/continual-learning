@@ -239,6 +239,8 @@ def create_loader(config, main_dataset: PartialDataset, memoryset: PartialDatase
     """Creates dataloader from two datasets. The resulting dataloader will loop through main_dataset
     while also randomly picking from the second dataset (doing its best without replacement). The datalaoder
     reaches the end once the main dataset is finished. If the second dataset comes short, it will be looped again.
+
+    If second dataset is None, it will create dataloader only from first with batchsize=config.batchsize.
     """
     if len(main_dataset) == 0:  # in this case we don't shuffle because it causes an error in Dataloader code
         assert memoryset is None or len(memoryset) == 0, "Got main dataset empty but memory non-empty"
@@ -250,8 +252,11 @@ def create_loader(config, main_dataset: PartialDataset, memoryset: PartialDatase
         if config.batch_memory_samples > 0:
             if len(memoryset) == 0:
                 raise ValueError('Memory dataset is empty while config.batch_memory_samples > 0')
+            # create sampler for main dataset depending on shuffle
             sampler_cls = [SequentialSampler, RandomSampler][shuffle]
             main_sampler = sampler_cls(main_dataset)
+
+            # create sampler for second dataset depending on shuffle
             sampler_cls = [ContinuousSequentialSampler, ContinuousRandomSampler][shuffle]
             offset = len(main_dataset)
             memory_sampler = sampler_cls(np.fromiter(range(len(memoryset)), dtype=int) + offset)
