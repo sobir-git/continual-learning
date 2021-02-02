@@ -23,6 +23,7 @@ ctrl:
   min_lr: 1.0e-05
   pos: after
   optimizer: SGD
+  gamma: 0.975
 lr_decay: 0.25
 lr_patience: 3
 val_size: 0.2
