@@ -99,8 +99,8 @@ class Classifier(Checkpoint, nn.Module):
         self.config = config
         self.classes: List[int] = list(classes)
 
-    def forward(self, inputs):
-        return self.net(inputs)
+    def forward(self, *inputs):
+        return self.net(*inputs)
 
     def localize_labels(self, labels: torch.Tensor):
         """Convert labels to local labels in range 0, ..., n, where n-1 is the output units.

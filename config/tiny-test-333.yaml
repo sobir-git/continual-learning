@@ -9,3 +9,5 @@ clf_memory_size: 100
 ctrl_memory_size: 100
 torch:
   num_workers: 0
+split_pos: -7
+split_pos_lower: 4

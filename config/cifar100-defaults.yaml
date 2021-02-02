@@ -18,3 +18,5 @@ batch_memory_samples: 16
 torch:
   num_workers: 3
   pin_memory: false
+
+input_size: [ 3, 224, 224 ]

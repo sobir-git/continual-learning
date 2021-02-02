@@ -1,12 +1,16 @@
 from typing import Iterable
 
+import torch
+import wandb
 from torch import nn
 from torch.utils.data import DataLoader
 
 from exp2.classifier import Classifier
 from exp2.model_state import ModelState, init_states
-from exp2.models import model_mapping, url_mapping
-from exp2.utils import split_model, load_state_dict_from_url_or_path
+from exp2.models import model_mapping, url_mapping, EfficientNet
+from exp2.models.efficientnet import split_efficientnet
+from exp2.models.simple_net import split_simple_net_20_classes
+from exp2.utils import load_state_dict_from_url_or_path
 
 PRETRAINED = None
 
@@ -56,7 +60,11 @@ def create_models(config, device) -> (FeatureExtractor, callable):
     global PRETRAINED
     if PRETRAINED is None:
         PRETRAINED = load_pretrained(config.pretrained)
-    fe, head_constructor = split_model(config, PRETRAINED)
+    if isinstance(PRETRAINED, EfficientNet):
+        fe, head_constructor = split_efficientnet(config, PRETRAINED)
+    else:  # TODO: check if it is really simplenet
+        fe, head_constructor = split_simple_net_20_classes(config, PRETRAINED)
+
     fe = FeatureExtractor(config, fe, device)
     fe.eval()
     fe = fe.to(device)
@@ -68,3 +76,20 @@ def create_models(config, device) -> (FeatureExtractor, callable):
         return Classifier(config, net, classes, idx).to(device)
 
     return fe, classifier_constructor
+
+
+def _log_architecture(name, model, input_data=None):
+    from torchinfo import summary
+    with open(wandb.run.dir + '/' + f'model_{name}.txt', 'w', encoding="utf-8") as f:
+        f.write(str(model) + '\n')
+        if input_data is not None:
+            model_stats_str = str(summary(model, input_data=input_data, verbose=0, depth=5))
+            f.write(model_stats_str)
+
+
+def log_architectures(config, fe, classifier_constructor, device):
+    x = torch.randn(1, *config.input_size, device=device)
+    _log_architecture('feature_extractor', fe, x)
+    x = fe(x)
+    clf = classifier_constructor(range(config.n_classes_per_phase))
+    _log_architecture('classifier', clf, x)

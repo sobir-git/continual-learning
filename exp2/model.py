@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from exp2.classifier import Classifier, upload_classifier
 from exp2.controller import Controller, create_controller
 from exp2.data import create_loader, PartialDataset
-from exp2.feature_extractor import create_models
+from exp2.feature_extractor import create_models, log_architectures
 from exp2.lr_scheduler import get_classifier_lr_scheduler, get_controller_lr_scheduler
 from exp2.memory import Memory
 from exp2.model_state import ModelState, init_states
@@ -85,6 +85,7 @@ class Model:
         self.device = get_device()
         self.classifiers: List[Classifier] = []
         self.feature_extractor, self._classifier_constructor = create_models(config, device=self.device)
+        log_architectures(config, self.feature_extractor, self._classifier_constructor, self.device)
         self.logger.log({'feature_extractor': str(self.feature_extractor.net)}, commit=True)
         self.config = config
         self._classes = []

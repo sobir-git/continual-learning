@@ -6,8 +6,9 @@ import math
 from collections import OrderedDict
 
 import torch
-import torch.nn as nn
+from torch import nn
 
+from exp2.models.utils import MultiOutputNet, get_output_shape
 from exp2.utils import load_state_dict_from_url_or_path
 
 
@@ -270,15 +271,147 @@ class EfficientNet(nn.Module):
         return len(self._get_sequence())
 
 
+class EfficientNetHead(nn.Module):
+    def __init__(self, input_shape, n_classes, lower_input_shape=None):
+        super().__init__()
+
+        self.neck = nn.Sequential(
+            nn.Conv2d(in_channels=input_shape[0], out_channels=n_classes * 4, kernel_size=1),
+            nn.BatchNorm2d(n_classes * 4),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten()
+        )
+
+        def dw_block(c, c_out):
+            return nn.Sequential(
+                nn.Conv2d(c, c_out,
+                          kernel_size=3, stride=2,
+                          padding=1, groups=c,
+                          bias=False),
+                nn.BatchNorm2d(c_out),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=c_out, out_channels=c, kernel_size=1),
+                nn.BatchNorm2d(c_out),
+                nn.ReLU()
+            )
+
+        def conv_block(c, c_out):
+            return nn.Sequential(
+                nn.Conv2d(c, c_out, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(c_out),
+                nn.ReLU()
+            )
+
+        if lower_input_shape is not None:
+            c = int(math.sqrt(n_classes))
+            c_out = (c + 2) * 2
+            lower_neck = [
+                nn.Conv2d(in_channels=lower_input_shape[0], out_channels=c_out, kernel_size=1),
+                nn.BatchNorm2d(c_out),
+                nn.ReLU(),
+            ]
+            h, w = lower_input_shape[1:]  # C, H, W
+            c = c_out
+            while h > 7:
+                c_out = int(c * 1.5)
+                lower_neck.extend([
+                    conv_block(c, c_out),
+                    dw_block(c_out, c_out),
+                ])
+                h //= 2
+                c = c_out
+
+            self.lower_neck = nn.Sequential(
+                *lower_neck,
+                nn.AdaptiveAvgPool2d(1),
+                nn.Flatten()
+            )
+
+        neck_output_shape = get_output_shape(self.neck, input_shape)
+        in_features = neck_output_shape[0]
+        if lower_input_shape is not None:
+            in_features += get_output_shape(self.lower_neck, lower_input_shape)[0]
+
+        self.final = nn.Linear(in_features=in_features, out_features=n_classes)
+
+    def forward(self, lower_inputs, inputs=None):
+        if type(lower_inputs) in [list, tuple]:
+            lower_inputs, inputs = lower_inputs
+        if inputs is None:
+            outputs = self.neck(lower_inputs)
+        else:
+            outputs = self.neck(inputs)
+            lower_outputs = self.lower_neck(lower_inputs)
+            outputs = torch.cat([outputs, lower_outputs], 1)
+        return self.final(outputs)
+
+
+def split_efficientnet(config, model):
+    """
+    Split Efficientnet model into feature extractor and head constructor.
+    """
+
+    head_input_shape = None
+    head_lower_input_shape = None
+
+    if config.lower_split_pos is not None:
+        fe0 = model[:config.lower_split_pos]
+        fe1 = model[config.lower_split_pos:config.split_pos]
+
+        fe = MultiOutputNet(fe0, fe1)
+        batch = torch.randn(1, 3, 224, 224)
+        outputs = fe(batch)
+        head_input_shape = outputs[1].shape[1:]
+        head_lower_input_shape = outputs[0].shape[1:]
+    else:
+        fe = model[:config.split_pos]
+        head_input_shape = get_output_shape(fe, input_shape=(3, 224, 224))
+
+    # freeze the feature extractor
+    fe.eval()
+    for param in fe.parameters():
+        param.requires_grad = False
+
+    @torch.no_grad()
+    def head_constructor(n_classes: int):
+        head = EfficientNetHead(input_shape=head_input_shape, n_classes=n_classes,
+                                lower_input_shape=head_lower_input_shape)
+        return head
+
+    return fe, head_constructor
+
+
 if __name__ == '__main__':
+    from torchinfo import summary
+
     url = 'http://storage.googleapis.com/public-models/efficientnet-b0-08094119.pth'
     model = EfficientNet.from_pretrained(url)
-    batch = torch.rand(8, 3, 224, 224)
-    outputs = model.stem(batch)
-    print('input shape:', batch.shape[1:])
-    print('model.stem output shape:', outputs.shape[1:])
+    batch = torch.rand(5, 3, 224, 224)
+    # outputs = model.stem(batch)
+    # print('input shape:', batch.shape[1:])
+    # print('model.stem output shape:', outputs.shape[1:])
 
-    n = len(model.blocks)
-    for i in range(n):
-        outputs = model.blocks[i](outputs)
-        print(f'model.block[{i}] output shape:', outputs.shape[1:])
+    # n = len(model.blocks)
+    # for i in range(n):
+    #     outputs = model.blocks[i](outputs)
+    #     print(f'model.block[{i}] output shape:', outputs.shape[1:])
+
+    split_pos = -2
+    lower_split_pos = 0
+    input_shape = model[:split_pos](batch).shape[1:]
+    lower_input_shape = model[:lower_split_pos](batch).shape[1:]
+
+    head = EfficientNetHead(input_shape, 1, lower_input_shape)
+
+    feat0 = model[:lower_split_pos]
+    feat1 = model[lower_split_pos:split_pos]
+    out0 = feat0(batch)
+    out1 = feat1(out0)
+    print(head)
+    print(out0.shape)
+    print(out1.shape)
+    summary(head, input_data=(out0, out1))
+
+    #
+    # print(summary(model, input_data=batch, depth=5))

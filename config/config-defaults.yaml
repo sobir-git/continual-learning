@@ -31,6 +31,7 @@ balance_other_samplesize: true
 clone_head: false
 pretrained: 'simple_net_20_classes'
 split_pos: 10
+split_pos_lower: null
 batch_size: 32
 batch_memory_samples: 16
 class_order_seed: -1
@@ -45,3 +46,4 @@ torch:
   pin_memory: false
   non_blocking: true
 phase: null  # run a particular phase
+input_size: [ 3, 32, 32 ]
