@@ -129,7 +129,9 @@ class MLPController(Controller):
         activation = config.ctrl['hidden_activation']
         hidden_layer_size = int(n_classifiers * hidden_layer_scale)
         return nn.Sequential(
+            nn.BatchNorm1d(in_features),
             nn.Linear(in_features=in_features, out_features=hidden_layer_size),
+            nn.BatchNorm1d(hidden_layer_size),
             getattr(nn, activation)(),
             nn.Linear(in_features=hidden_layer_size, out_features=n_classifiers),
         )
@@ -145,7 +147,10 @@ class MLPController(Controller):
 class LinearController(MLPController):
     def _create_net(self, config, n_classifiers, in_features):
         in_features = n_classifiers * (config.n_classes_per_phase + config.other)
-        return nn.Linear(in_features=in_features, out_features=n_classifiers)
+        return nn.Sequential(
+            nn.BatchNorm1d(in_features),
+            nn.Linear(in_features=in_features, out_features=n_classifiers),
+        )
 
 
 def create_controller(config, idx, classifiers, device) -> Controller:
