@@ -355,9 +355,9 @@ def split_efficientnet(config, model):
     head_input_shape = None
     head_lower_input_shape = None
 
-    if config.lower_split_pos is not None:
-        fe0 = model[:config.lower_split_pos]
-        fe1 = model[config.lower_split_pos:config.split_pos]
+    if config.split_pos_lower is not None:
+        fe0 = model[:config.split_pos_lower]
+        fe1 = model[config.split_pos_lower:config.split_pos]
 
         fe = MultiOutputNet(fe0, fe1)
         batch = torch.randn(1, 3, 224, 224)
@@ -398,14 +398,14 @@ if __name__ == '__main__':
     #     print(f'model.block[{i}] output shape:', outputs.shape[1:])
 
     split_pos = -2
-    lower_split_pos = 0
+    split_pos_lower = 0
     input_shape = model[:split_pos](batch).shape[1:]
-    lower_input_shape = model[:lower_split_pos](batch).shape[1:]
+    lower_input_shape = model[:split_pos_lower](batch).shape[1:]
 
     head = EfficientNetHead(input_shape, 1, lower_input_shape)
 
-    feat0 = model[:lower_split_pos]
-    feat1 = model[lower_split_pos:split_pos]
+    feat0 = model[:split_pos_lower]
+    feat1 = model[split_pos_lower:split_pos]
     out0 = feat0(batch)
     out1 = feat1(out0)
     print(head)
