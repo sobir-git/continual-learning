@@ -16,12 +16,15 @@ class MultiOutputNet(nn.Module):
 
 
 @torch.no_grad()
-def get_output_shape(model, input_shape=None, inputs=None):
-    model_device = next(model.parameters()).device
-    training = model.training
+def get_output_shape(model, input_shape=None, inputs=None, device=None):
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if inputs is None:
-        inputs = torch.randn(input_shape).unsqueeze(0).to(model_device)
+        inputs = torch.randn(input_shape).unsqueeze(0)
+    training = model.training
     model.eval()
+    inputs = inputs.to(device)
+    model = model.to(device)
     outputs = model(inputs)
     model.train(training)
     return outputs.shape[1:]
