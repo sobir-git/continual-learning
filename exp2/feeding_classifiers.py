@@ -21,6 +21,8 @@ from utils import get_default_device, get_console_logger
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--run', type=str)
+parser.add_argument('--original_project', type=str,
+                    help='In case the run has been moved to a different project, specify this.')
 parser.add_argument('--epochs', type=int, default=400)
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--phase', type=int)
@@ -35,12 +37,15 @@ def aslist(s: Sequence):
     return list(s)
 
 
-def get_all_run_artifacts(run: Run, mode='used', declare_used=True):
+def get_all_run_artifacts(run: Run, mode='used', project=None, declare_used=True):
     if mode == 'used':
         artifacts = run.used_artifacts()
     else:
+        assert mode == 'logged'
         artifacts = run.logged_artifacts()
-    artifacts = [api.artifact(f'{run.entity}/{run.project}/{art.name}') for art in artifacts]
+    if project is None:
+        project = run.project
+    artifacts = [api.artifact(f'{run.entity}/{project}/{art.name}') for art in artifacts]
     artifacts_dict = {art.name: art for art in artifacts}
     if declare_used:
         for art in artifacts:
@@ -56,8 +61,8 @@ def load_config_from_artifact(artifact):
     return SimpleNamespace(**config)
 
 
-def load_config_from_run(run: Run):
-    artifacts = get_all_run_artifacts(run, 'used')
+def load_config_from_run(run: Run, project=None):
+    artifacts = get_all_run_artifacts(run, project=project, mode='used')
     art = artifacts[f'config-{run.id}:v0']
     art_dir = Path(art.download())
     config_dict = yaml.safe_load((art_dir / 'combined-config.yaml').open())
@@ -71,7 +76,7 @@ console_logger = get_console_logger(__name__)
 run = wandb.init(job_type='feeding_classifiers', project='classifier-outputs')
 api = wandb.Api()
 past_run: Run = api.run(args.run)
-config = load_config_from_run(past_run)
+config = load_config_from_run(past_run, args.original_project)
 console_logger.info(f'Source run name: {past_run.name}')
 
 # prepare data
@@ -79,7 +84,7 @@ data = prepare_data(config)
 
 # load memory
 memory_manager = MemoryManager(config, data)
-past_logged_artifacts = get_all_run_artifacts(past_run, 'logged')
+past_logged_artifacts = get_all_run_artifacts(past_run, project=args.original_project, mode='logged')
 artifact = past_logged_artifacts[f'memory-ids-{past_run.id}:v0']
 memory_manager.load_from_artifact(artifact, args.phase)
 
@@ -100,8 +105,12 @@ for clf in classifiers:
     artifact_dir = Path(artifact.download())
     clf.load_from_checkpoint(artifact_dir / f'classifier_{clf.idx}.pt')
 
+ctrl_memory = memory_manager['ctrl']
+shared_memory = memory_manager['shared']
+clf_memory = memory_manager['clf']
+
 # generate training data
-trainset = memory_manager.ctrl_memory.get_dataset(train=True).mix(memory_manager.shared_memory.get_dataset(train=True))
+trainset = ctrl_memory.get_dataset(train=True).mix(shared_memory.get_dataset(train=True))
 trainset, valset = trainset.split(test_size=config.val_size)
 testset = data.get_phase_data(phase=args.phase)[2]
 clf_output_size = n_class_per_phase + config.other

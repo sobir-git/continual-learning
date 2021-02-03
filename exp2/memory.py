@@ -222,10 +222,9 @@ class MemoryManager(MemoryManagerBasic):
         with open(folder / f'ids-{phase}.pkl', 'rb') as f:
             d = pickle.load(f)
 
-        for name in self.names:
+        for name, memory in self.items():
             state = d[name]
-            mem: Memory = getattr(self, name)
-            mem.load_state(state)
+            memory.load_state(state)
 
     def on_training_end(self):
         console_logger.info('Uploading memory indices')
