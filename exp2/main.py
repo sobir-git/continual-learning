@@ -84,7 +84,8 @@ if __name__ == '__main__':
     if args.wandb_group:
         init_dict['group'] = args.wandb_group
 
-    wandb.init(config=config_dict, job_type='clf-training', **init_dict)
+    excluded_keys = ['logdir', 'datadir']
+    wandb.init(config=config_dict, job_type='clf-training', **init_dict, config_exclude_keys=excluded_keys)
     config = wandb.config
 
     # extend logging directory with the current unique run name

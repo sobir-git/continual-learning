@@ -271,66 +271,73 @@ class EfficientNet(nn.Module):
         return len(self._get_sequence())
 
 
+def flatten_cnn(input_shape, n_classes, expand_rate=1.5, h_threshold=7):
+    """Aguments CNN until it is not larger that 7x7 spatially. The number of parameters
+    will be O(n_classes)."""
+
+    def dw_block(ch_in, ch_out):
+        return nn.Sequential(
+            nn.Conv2d(ch_in, ch_out,
+                      kernel_size=3, stride=2,
+                      padding=1, groups=ch_in,
+                      bias=False),
+            nn.BatchNorm2d(ch_out),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=ch_out, out_channels=ch_in, kernel_size=1),
+            nn.BatchNorm2d(ch_out),
+            nn.ReLU()
+        )
+
+    def conv_block(ch_in, ch_out):
+        return nn.Sequential(
+            nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(ch_out),
+            nn.ReLU()
+        )
+
+    def init_block(ch_in, ch_out):
+        return nn.Sequential(
+            nn.Conv2d(in_channels=ch_in, out_channels=ch_out, kernel_size=1),
+            nn.BatchNorm2d(ch_out),
+            nn.ReLU(),
+        )
+
+    h, w = input_shape[1:]  # C, H, W
+    if h <= h_threshold:
+        neck = [init_block(input_shape[0], n_classes * 4)]
+    else:
+        c = int(math.sqrt(n_classes))
+        c_out = (c + 2) * 2
+        neck = [init_block(input_shape[0], c_out)]
+        c = c_out
+
+        while h > h_threshold:
+            c_out = int(c * expand_rate)
+            neck.extend([
+                conv_block(c, c_out),
+                dw_block(c_out, c_out),
+            ])
+            h = (h + 1) // 2
+            c = c_out
+
+    neck.extend([
+        nn.AdaptiveAvgPool2d(1),
+        nn.Flatten()
+    ])
+
+    return nn.Sequential(*neck)
+
+
 class EfficientNetHead(nn.Module):
     def __init__(self, input_shape, n_classes, lower_input_shape=None):
         super().__init__()
-
-        self.neck = nn.Sequential(
-            nn.Conv2d(in_channels=input_shape[0], out_channels=n_classes * 4, kernel_size=1),
-            nn.BatchNorm2d(n_classes * 4),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d(1),
-            nn.Flatten()
-        )
-
-        def dw_block(c, c_out):
-            return nn.Sequential(
-                nn.Conv2d(c, c_out,
-                          kernel_size=3, stride=2,
-                          padding=1, groups=c,
-                          bias=False),
-                nn.BatchNorm2d(c_out),
-                nn.ReLU(),
-                nn.Conv2d(in_channels=c_out, out_channels=c, kernel_size=1),
-                nn.BatchNorm2d(c_out),
-                nn.ReLU()
-            )
-
-        def conv_block(c, c_out):
-            return nn.Sequential(
-                nn.Conv2d(c, c_out, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(c_out),
-                nn.ReLU()
-            )
-
-        if lower_input_shape is not None:
-            c = int(math.sqrt(n_classes))
-            c_out = (c + 2) * 2
-            lower_neck = [
-                nn.Conv2d(in_channels=lower_input_shape[0], out_channels=c_out, kernel_size=1),
-                nn.BatchNorm2d(c_out),
-                nn.ReLU(),
-            ]
-            h, w = lower_input_shape[1:]  # C, H, W
-            c = c_out
-            while h > 7:
-                c_out = int(c * 1.5)
-                lower_neck.extend([
-                    conv_block(c, c_out),
-                    dw_block(c_out, c_out),
-                ])
-                h //= 2
-                c = c_out
-
-            self.lower_neck = nn.Sequential(
-                *lower_neck,
-                nn.AdaptiveAvgPool2d(1),
-                nn.Flatten()
-            )
+        self.neck = flatten_cnn(input_shape, n_classes)
+        self.lower_neck = None
 
         neck_output_shape = get_output_shape(self.neck, input_shape)
         in_features = neck_output_shape[0]
         if lower_input_shape is not None:
+            self.lower_neck = flatten_cnn(lower_input_shape, n_classes)
             in_features += get_output_shape(self.lower_neck, lower_input_shape)[0]
 
         self.final = nn.Linear(in_features=in_features, out_features=n_classes)
@@ -402,7 +409,7 @@ if __name__ == '__main__':
     input_shape = model[:split_pos](batch).shape[1:]
     lower_input_shape = model[:split_pos_lower](batch).shape[1:]
 
-    head = EfficientNetHead(input_shape, 1, lower_input_shape)
+    head = EfficientNetHead(input_shape, 10, lower_input_shape)
 
     feat0 = model[:split_pos_lower]
     feat1 = model[split_pos_lower:split_pos]
