@@ -140,3 +140,15 @@ class Checkpoint(nn.Module):
 
     def get_checkpoint_file(self):
         return self._checkpoint_file
+
+
+class DeviceTracker(nn.Module):
+    __device = torch.device('cpu')
+
+    def to(self, device, *args, **kwargs):
+        self.__device = device
+        super(DeviceTracker, self).to(device, *args, **kwargs)
+
+    @property
+    def device(self):
+        return self.__device

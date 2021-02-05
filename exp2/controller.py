@@ -7,7 +7,7 @@ from torch import nn, optim
 from torch.nn import functional as F, Parameter
 
 from exp2.classifier import Classifier
-from exp2.models.utils import ClassMapping, Checkpoint
+from exp2.models.utils import ClassMapping, Checkpoint, DeviceTracker
 from exp2.models.splitting import PRETRAINED
 from exp2.utils import split_model
 
@@ -131,7 +131,7 @@ def create_controller(config, idx, classifiers, device) -> Controller:
     return net
 
 
-class GrowingLinear(nn.Module):
+class GrowingLinear(DeviceTracker, nn.Module):
     def __init__(self, in_features, out_features):
         super().__init__()
         self._fin = [0, in_features]
@@ -147,10 +147,12 @@ class GrowingLinear(nn.Module):
     @torch.no_grad()
     def _initw(self, i, j):
         """Initialize weights transforming input group i to output group j"""
-        self._setw(i, j, torch.zeros((self._fout[j], self._fin[i])))
+        w = torch.zeros(self._fout[j], self._fin[i], device=self.device)
+        self._setw(i, j, w)
 
-    def _setw(self, i, j, w, requres_grad=True):
-        p = Parameter(w, requires_grad=requres_grad)
+    def _setw(self, i, j, w, requires_grad=True):
+        w = w.to(self.device)
+        p = Parameter(w, requires_grad=requires_grad)
         self.w[i, j] = p
         self.register_parameter(f'w{i}{j}', p)
 
@@ -160,7 +162,7 @@ class GrowingLinear(nn.Module):
         fin0 = self._fin[0]
         fout0 = self._fout[0]
         w = self.w
-        w00 = torch.empty(self.out_features, self.in_features, device=w[0, 0].data.device)
+        w00 = torch.empty(self.out_features, self.in_features, device=self.device)
         w00[:fout0, :fin0] = w[0, 0]
         w00[:fout0, fin0:] = w[1, 0]
         w00[fout0:, :fin0] = w[0, 1]
@@ -185,7 +187,7 @@ class GrowingLinear(nn.Module):
         return o
 
 
-class GrowingController(Checkpoint, ClassMapping, nn.Module):
+class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -209,8 +211,7 @@ class GrowingController(Checkpoint, ClassMapping, nn.Module):
     def extend(self, new_classes, n_new_inputs):
         super(GrowingController, self).extend(new_classes)
         self.linear.append(n_new_inputs, len(new_classes))
-        device = self.bn.weight.device
-        self.bn = nn.BatchNorm1d(self.bn.num_features + n_new_inputs).to(device)
+        self.bn = nn.BatchNorm1d(self.bn.num_features + n_new_inputs).to(self.device)
 
         # checkpoint becames incompatible, so we remove it
         self.remove_checkpoint()
