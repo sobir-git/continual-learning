@@ -147,7 +147,7 @@ class DeviceTracker(nn.Module):
 
     def to(self, device, *args, **kwargs):
         self.__device = device
-        super(DeviceTracker, self).to(device, *args, **kwargs)
+        return super(DeviceTracker, self).to(device, *args, **kwargs)
 
     @property
     def device(self):
