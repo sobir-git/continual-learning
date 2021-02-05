@@ -1,82 +1,115 @@
-from dataclasses import dataclass, field
-from typing import Dict, TYPE_CHECKING, Iterable
+from collections import OrderedDict
+from typing import TYPE_CHECKING, Iterable, List
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+from exp2.feature_extractor import FeatureExtractor
+
 if TYPE_CHECKING:
     from exp2.classifier import Classifier
-    from exp2.controller import Controller
+    from exp2.controller import GrowingController
 
 
-class ChildState:
-    parent = None
-
-    def __getattr__(self, item):
-        return getattr(self.parent, item)
-
-
-@dataclass
-class ControllerState(ChildState):
-    self: 'Controller'
-    outputs: torch.Tensor = None
-    parent: 'ModelState' = None
-    loss: torch.Tensor = None
-    epoch: int = None
-
-
-@dataclass
-class ClassifierState(ChildState):
-    self: 'Classifier'
-    outputs: torch.Tensor = None
-    parent: 'ModelState' = None
-    loss: torch.Tensor = None
-    epoch: int = None
-
-
-@dataclass
-class ModelState:
-    ids: np.ndarray
-    inputs: torch.Tensor
-    features: torch.Tensor = None
-    controller_state: ControllerState = None
-    classifier_states: Dict['Classifier', ClassifierState] = field(default_factory=dict)
-    labels_np: np.ndarray = None
-    labels: torch.Tensor = None
-    phase: int = None
-    mode: str = None  # "train", "val", or "test"
-
-    def add_classifier(self, clf: ClassifierState):
-        self.classifier_states[clf.self] = clf
-        clf.parent = self
-
-    def get_classifiers(self):
-        return list(self.classifier_states.keys())
-
-    def get_classifier_state(self, classifier: 'Classifier') -> ClassifierState:
-        return self.classifier_states[classifier]
-
-    def set_controller_state(self, controller_state: ControllerState):
-        if self.controller_state is not None:
-            raise ValueError("Controller is already present")
-        self.controller_state = controller_state
-        controller_state.parent = self
-
-    def get_controller(self):
-        return self.controller_state.self
-
-    def get_controller_state(self) -> ControllerState:
-        return self.controller_state
+def lazy_property(fn):
+    '''Decorator that makes a property lazy-evaluated.
+    '''
+    attr_name = '_lazy_' + fn.__name__
 
     @property
-    def batchsize(self) -> int:
-        return self.labels.size(0)
+    def _lazy_property(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, fn(self))
+        return getattr(self, attr_name)
+
+    return _lazy_property
 
 
-def init_states(config, loader: DataLoader, device) -> Iterable[ModelState]:
+class LazyClassifierState:
+    def __init__(self, classifier: 'Classifier', parent: 'LazyModelState', criterion):
+        self.parent = parent
+        self.classifier = classifier
+        self.criterion = criterion
+
+    @lazy_property
+    def outputs(self) -> torch.Tensor:
+        features = self.parent.features
+        return self.classifier(features)
+
+    @lazy_property
+    def loss(self) -> torch.Tensor:
+        outputs = self.outputs
+        labels = self.parent.labels
+        return self.classifier.get_loss(outputs, labels, self.criterion)
+
+
+class LazyControllerState:
+
+    def __init__(self, controller: 'GrowingController', parent: 'LazyModelState'):
+        self.controller = controller
+        self.parent = parent
+
+    @lazy_property
+    def outputs(self) -> torch.Tensor:
+        clf_states = self.parent.classifier_states
+        clf_outputs = [state.outputs for state in clf_states.values()]
+        return self.controller(clf_outputs)
+
+    @lazy_property
+    def loss(self) -> torch.Tensor:
+        outputs = self.outputs
+        labels = self.parent.labels
+        return self.controller.get_loss(outputs, labels)
+
+    @lazy_property
+    def predictions(self) -> np.ndarray:
+        outputs = self.outputs
+        return self.controller.get_predictions(outputs)
+
+
+class LazyModelState:
+    ids: np.ndarray
+    inputs: torch.Tensor
+    classes: np.ndarray
+    labels_np: np.ndarray
+    labels: torch.Tensor
+    phase: int
+
+    def __init__(self, feature_extractor: 'FeatureExtractor', classifiers: List['Classifier'],
+                 controller: 'GrowingController', inputs, labels_np=None, labels=None, classes=None,
+                 phase=None, ids=None):
+        self.ids = ids
+        self.phase = phase
+        self.inputs = inputs
+        self.labels_np = labels_np
+        self.labels = labels
+        self.classes = classes
+        self.clf_criterion = torch.nn.CrossEntropyLoss()
+        self.feature_extractor = feature_extractor
+        self.classifiers = classifiers
+        self.controller = controller
+        self.classifier_states = OrderedDict(
+            (clf, LazyClassifierState(clf, self, self.clf_criterion)) for clf in classifiers)
+        self.ctrl_state = LazyControllerState(controller, self)
+
+    @lazy_property
+    def features(self) -> torch.Tensor:
+        return self.feature_extractor(self.inputs)
+
+    @property
+    def final_outputs(self) -> torch.Tensor:
+        return self.ctrl_state.outputs
+
+    @property
+    def batch_size(self):
+        return len(self.inputs)
+
+
+def init_states(config, model, loader: DataLoader, device, **kwargs) -> Iterable[LazyModelState]:
     non_blocking = config.torch['non_blocking']
     for inputs, labels, ids in loader:
         labels_np = labels.numpy()
         inputs, labels = inputs.to(device, non_blocking=non_blocking), labels.to(device, non_blocking=non_blocking)
-        yield ModelState(ids, inputs, labels=labels, labels_np=labels_np)
+        yield LazyModelState(model.feature_extractor, model.classifiers, model.controller,
+                             inputs, labels=labels, labels_np=labels_np, **kwargs)

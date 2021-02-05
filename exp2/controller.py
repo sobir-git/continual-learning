@@ -1,14 +1,14 @@
 from abc import abstractmethod
-from typing import List, Iterable, Union
+from typing import List
 
 import numpy as np
 import torch
 from torch import nn, optim
-from torch.nn import functional as F
+from torch.nn import functional as F, Parameter
 
 from exp2.classifier import Classifier
-from exp2.feature_extractor import PRETRAINED
-from exp2.model_state import ControllerState, ModelState
+from exp2.models.utils import ClassMapping, Checkpoint
+from exp2.models.splitting import PRETRAINED
 from exp2.utils import split_model
 
 
@@ -73,43 +73,6 @@ class Controller(nn.Module):
         labels = self.group_labels(labels)
         return self.criterion(outputs, labels)
 
-    def _ensure_state(self, state: ModelState):
-        if state.controller_state is None:
-            ctrl_state = ControllerState(self)
-            state.set_controller_state(ctrl_state)
-            return ctrl_state
-
-    def _feed_with_state(self, mstate: ModelState) -> ControllerState:
-        """Feed controller with frozen classifiers(no grad)"""
-        ctrl_state = self._ensure_state(mstate)
-        if ctrl_state.outputs is not None:
-            return ctrl_state
-
-        if self.config.ctrl['pos'] == 'after':
-            # gather classifier outputs
-            clf_outputs = []
-            with torch.no_grad():
-                for clf in self.classifiers:
-                    clf_state = clf.feed(state=mstate)
-                    clf_outputs.append(clf_state.outputs)
-            ctrl_inputs = clf_outputs
-        else:
-            ctrl_inputs = mstate.features
-
-        ctrl_outputs = self(ctrl_inputs)
-        ctrl_state.outputs = ctrl_outputs
-        return ctrl_state
-
-    def feed(self, state: ModelState = None,
-             states: Iterable[ModelState] = None) -> Union[Iterable[ControllerState], ControllerState]:
-        """Feed controller with the given dataloader, and yield results as a generator. The classifiers
-        are forwarded with no gradients. If state is given, the controller state will be added to it as well.
-        """
-        if state:
-            return self._feed_with_state(state)
-        else:
-            return map(self._feed_with_state, states)
-
 
 class CNNController(Controller):
     pass
@@ -166,3 +129,97 @@ def create_controller(config, idx, classifiers, device) -> Controller:
             net = LinearController(config, idx, classifiers)
     net = net.to(device)
     return net
+
+
+class GrowingLinear(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self._fin = [0, in_features]
+        self._fout = [0, out_features]
+        self.in_features = in_features
+        self.out_features = out_features
+        self.w = dict()
+        self._initw(0, 0)
+        self._initw(0, 1)
+        self._initw(1, 0)
+        self._initw(1, 1)
+
+    @torch.no_grad()
+    def _initw(self, i, j):
+        """Initialize weights transforming input group i to output group j"""
+        self._setw(i, j, torch.zeros((self._fout[j], self._fin[i])))
+
+    def _setw(self, i, j, w, requres_grad=True):
+        p = Parameter(w, requires_grad=requres_grad)
+        self.w[i, j] = p
+        self.register_parameter(f'w{i}{j}', p)
+
+    @torch.no_grad()
+    def append(self, in_features, out_features):
+        # combine existing weights
+        fin0 = self._fin[0]
+        fout0 = self._fout[0]
+        w = self.w
+        w00 = torch.empty(self.out_features, self.in_features, device=w[0, 0].data.device)
+        w00[:fout0, :fin0] = w[0, 0]
+        w00[:fout0, fin0:] = w[1, 0]
+        w00[fout0:, :fin0] = w[0, 1]
+        w00[fout0:, fin0:] = w[1, 1]
+        self._setw(0, 0, w00)
+
+        # new weights
+        self._fout = [sum(self._fout), out_features]
+        self._fin = [sum(self._fin), in_features]
+        self.in_features = sum(self._fin)
+        self.out_features = sum(self._fout)
+        self._initw(0, 1)
+        self._initw(1, 0)
+        self._initw(1, 1)
+
+    def forward(self, inputs):
+        w = self.w
+        inputs0, inputs1 = inputs[:, :self._fin[0]], inputs[:, self._fin[0]:]
+        o0 = F.linear(inputs0, w[0, 0]) + F.linear(inputs1, w[1, 0])
+        o1 = F.linear(inputs0, w[0, 1]) + F.linear(inputs1, w[1, 1])
+        o = torch.cat([o0, o1], dim=1)
+        return o
+
+
+class GrowingController(Checkpoint, ClassMapping, nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.linear = GrowingLinear(0, 0)
+        self.bn = nn.BatchNorm1d(0)
+        self.criterion = nn.CrossEntropyLoss()
+
+    def get_predictions(self, outputs) -> np.ndarray:
+        """Get predictions given controller outputs."""
+        local_predictions = torch.argmax(outputs, 1)
+        return self.globalize_labels(local_predictions, 'cpu')
+
+    def get_loss(self, outputs, labels):
+        labels = self.localize_labels(labels)
+        loss = self.criterion(outputs, labels)
+        return loss
+
+    def set_warmup(self, warmup=True):
+        self.linear.w[0, 0].requires_grad = not warmup
+
+    def extend(self, new_classes, n_new_inputs):
+        super(GrowingController, self).extend(new_classes)
+        self.linear.append(n_new_inputs, len(new_classes))
+        self.bn = nn.BatchNorm1d(self.bn.num_features + n_new_inputs)
+
+        # checkpoint becames incompatible, so we remove it
+        self.remove_checkpoint()
+
+    def forward(self, clf_outs: List[torch.Tensor]):
+        """Assumes the classifier raw outputs in a list."""
+        # apply softmax
+        inputs = [F.softmax(i, dim=1) for i in clf_outs]
+        # apply batchnorm
+        x = torch.cat(inputs, dim=1)
+        x = self.bn(x)
+        x = self.linear(x)
+        return x

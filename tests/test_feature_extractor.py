@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import torch
 
-from exp2.feature_extractor import create_models
+from exp2.models.splitting import create_models
 
 
 def test_create_models():

@@ -9,10 +9,10 @@ from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as sch
 
 import utils
-from exp2.classifier import Checkpoint
+from exp2.models.utils import Checkpoint
+from exp2.models.splitting import load_pretrained
 from exp2.config import load_configs
 from exp2.data import prepare_data, create_loader
-from exp2.feature_extractor import load_pretrained
 from exp2.memory import MemoryManagerBasic
 from exp2.models import model_mapping
 from exp2.utils import split_model

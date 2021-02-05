@@ -2,34 +2,17 @@ dataset: CIFAR10
 n_classes_per_phase: 2
 n_phases: 5
 other: true
-shared_memory_size: 0
-clf_memory_size: 350
-ctrl_memory_size: 150
-clf:
-  epochs: 50
-  epochs_tol: 20
-  lr: 0.01
-  lr_scheduler: poly1
-  min_lr: 1.0e-05
-  optimizer: SGD
-  gamma: 0.975
-ctrl:
-  epochs: 200
-  epochs_tol: 20
-  hidden_activation: Sigmoid
-  hidden_layer_scale: 0.0
-  lr: 0.01
-  lr_scheduler: poly1
-  min_lr: 1.0e-05
-  pos: after
-  optimizer: SGD
-  gamma: 0.975
-lr_decay: 0.25
+memory_size: 500
+epochs: 50
+epochs_tol: 20
+lr: 0.01
+lr_scheduler: poly1
+min_lr: 1.0e-05
+optimizer: SGD
+lam: 1.
+gamma: 0.975
 lr_patience: 3
 val_size: 0.2
-balance_other_classsize: true
-balance_other_samplesize: true
-clone_head: false
 pretrained: 'simple_net_20_classes'
 split_pos: 10
 split_pos_lower: null
@@ -41,10 +24,8 @@ datadir: ../data
 logdir: ./logs
 download: false
 resize_input: null
-update_classifiers: false
 torch:
   num_workers: 3
   pin_memory: false
   non_blocking: true
-phase: null  # run a particular phase
 input_size: [ 3, 32, 32 ]

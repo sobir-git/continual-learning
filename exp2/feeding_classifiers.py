@@ -15,7 +15,7 @@ from wandb.apis.public import Run
 from exp2.classifier import Classifier
 from exp2.controller import Controller
 from exp2.data import prepare_data, create_loader
-from exp2.feature_extractor import create_models
+from exp2.models.splitting import create_models
 from exp2.memory import MemoryManager
 from utils import get_default_device, get_console_logger
 

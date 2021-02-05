@@ -1,15 +1,12 @@
 import os
-import random
-import string
-from functools import partial
-from typing import List, Iterable
+from typing import List
 
 import numpy as np
 import torch
 import wandb
 from torch import nn
 
-from exp2.model_state import ClassifierState, ModelState
+from exp2.models.utils import Checkpoint
 from utils import np_a_in_b, get_console_logger
 
 console_logger = get_console_logger(__name__)
@@ -22,70 +19,6 @@ def upload_classifier(classifier):
         artifact = wandb.Artifact(f'classifier-{classifier.idx}-{wandb.run.id}', type='model')
         artifact.add_file(checkpoint_file)
         wandb.log_artifact(artifact)
-
-
-class Checkpoint(nn.Module):
-    _min_val_loss = float('inf')
-
-    def __init__(self, checkpoint_file=None):
-        super().__init__()
-        self._init(checkpoint_file)
-
-    def _init(self, checkpoint_file):
-        if checkpoint_file is None:
-            letters = string.ascii_lowercase + string.digits
-            self._checkpoint_file = ''.join(random.choice(letters) for _ in range(10)) + '.pt'
-        else:
-            self._checkpoint_file = checkpoint_file
-
-    def remove_checkpoint(self):
-        self._min_val_loss = float('inf')
-        try:
-            os.remove(self._checkpoint_file)
-        except FileNotFoundError:
-            pass
-        except Exception as e:
-            console_logger.error(f'Failed to remove checkpoint file: {e}')
-
-    @staticmethod
-    def wrap(model: nn.Module, checkpoint_file) -> "Checkpoint":
-        Checkpoint._init(model, checkpoint_file)
-        model._min_val_loss = float('inf')
-        model.checkpoint = partial(Checkpoint.checkpoint, model)
-        model.load_from_checkpoint = partial(Checkpoint.load_from_checkpoint, model)
-        model.get_checkpoint_file = partial(Checkpoint.get_checkpoint_file, model)
-        model.load_best = partial(Checkpoint.load_best, model)
-        model.remove_checkpoint = partial(Checkpoint.remove_checkpoint, model)
-        return model
-
-    def checkpoint(self, optimizer, val_loss, epoch):
-        """Checkpoint if val_loss is the minimum"""
-        if self._min_val_loss > val_loss:
-            d = {
-                'val_loss': val_loss,
-                'state_dict': self.state_dict(),
-                'optimizer': optimizer,
-                'epoch': epoch
-            }
-            torch.save(d, self._checkpoint_file)
-            self._min_val_loss = val_loss
-
-    def load_from_checkpoint(self, checkpoint_file):
-        d = torch.load(checkpoint_file)
-        self._min_val_loss = d['val_loss']
-        self.load_state_dict(d['state_dict'])
-        console_logger.debug('Loaded checkpoint (from epoch %s): %s', d['epoch'], checkpoint_file)
-        return d
-
-    def load_best(self):
-        """Load if checkpoint exists."""
-        if not os.path.isfile(self._checkpoint_file):
-            return
-        d = self.load_from_checkpoint(self._checkpoint_file)
-        return d
-
-    def get_checkpoint_file(self):
-        return self._checkpoint_file
 
 
 class Classifier(Checkpoint, nn.Module):
@@ -101,6 +34,10 @@ class Classifier(Checkpoint, nn.Module):
 
     def forward(self, *inputs):
         return self.net(*inputs)
+
+    @property
+    def output_size(self):
+        return len(self.classes) + self.config.other
 
     def localize_labels(self, labels: torch.Tensor):
         """Convert labels to local labels in range 0, ..., n, where n-1 is the output units.
@@ -154,27 +91,6 @@ class Classifier(Checkpoint, nn.Module):
         local_labels = self.localize_labels(labels)
         loss = criterion(outputs, local_labels)
         return loss
-
-    def _ensure_state(self, state: ModelState):
-        if self in state.get_classifiers():
-            return state.get_classifier_state(self)
-        else:
-            clf_state = ClassifierState(self)
-            state.add_classifier(clf_state)
-            return clf_state
-
-    def _feed_with_state(self, state: ModelState) -> ClassifierState:
-        clf_state = self._ensure_state(state)
-        if clf_state.outputs is None:
-            clf_state.outputs = self(state.features)
-        return clf_state
-
-    def feed(self, state: ModelState = None, states: Iterable[ModelState] = None):
-        """Feed classifier and return state object. If state is given, the classifier state will be added to it."""
-        if state:
-            return self._feed_with_state(state)
-        else:
-            return (self._feed_with_state(state) for state in states)
 
     def load_best(self):
         d = super(Classifier, self).load_best()

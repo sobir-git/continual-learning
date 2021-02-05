@@ -1,26 +1,22 @@
-from typing import List, Iterable
+import itertools
+from typing import List
 
+import numpy as np
 import torch
-from torch import nn, optim
-from torch.utils.data import DataLoader
+from sklearn.metrics import confusion_matrix
+from torch import nn
 
-from exp2.classifier import Classifier, upload_classifier
-from exp2.controller import Controller, create_controller
+from exp2.classifier import Classifier
+from exp2.controller import GrowingController
 from exp2.data import create_loader, PartialDataset
-from exp2.feature_extractor import create_models, log_architectures
-from exp2.lr_scheduler import get_classifier_lr_scheduler, get_controller_lr_scheduler
-from exp2.memory import Memory
-from exp2.model_state import ModelState, init_states
-from exp2.reporter import SourceReporter, ControllerReporter, create_test_reporter, ClassifierReporter
-from exp2.reporter_strings import CTRL_EPOCH, CLF_EPOCH, CTRL_LR, CLF_LR
-from logger import Logger
-from utils import get_default_device, TrainingStopper
+from exp2.lr_scheduler import _get_lr_scheduler
+from exp2.memory import MemoryManagerBasic
+from exp2.model_state import init_states
+from exp2.models.splitting import create_models, log_architectures
+from logger import Logger, get_accuracy
+from utils import get_default_device, TrainingStopper, AverageMeter
 
 DEVICE = get_default_device()
-
-
-def get_device():
-    return DEVICE
 
 
 def get_class_weights(config, newset, otherset=None):
@@ -76,19 +72,16 @@ def get_classification_criterion(config, newset, otherset, device):
     return criterion
 
 
-class Model:
-    controller: Controller = None
+class CIModelBase:
     phase: int
 
     def __init__(self, config, logger: Logger):
         self.logger = logger
-        self.device = get_device()
-        self.classifiers: List[Classifier] = []
+        self.device = DEVICE
         self.feature_extractor, self._classifier_constructor = create_models(config, device=self.device)
         log_architectures(config, self.feature_extractor, self._classifier_constructor, self.device)
-        self.logger.log({'feature_extractor': str(self.feature_extractor.net)}, commit=True)
         self.config = config
-        self._classes = []
+        self.classifiers: List[Classifier] = []
 
     def phase_start(self, phase):
         self.phase = phase
@@ -96,355 +89,206 @@ class Model:
     def phase_end(self):
         pass
 
-    @property
-    def classes(self):
-        return self._classes
-
-    def _create_classifier_optimizer(self, classifier):
-        opt_name = self.config.clf['optimizer']
-        common = dict(params=classifier.parameters(), lr=self.config.clf['lr'])
-        if opt_name == 'SGD':
-            return optim.SGD(**common, momentum=0.9, weight_decay=self.config.weight_decay)
-        elif opt_name == 'Adam':
-            return optim.Adam(**common)
-        else:
-            raise ValueError("Optimizer should be one of 'SGD' or 'Adam'")
-
     def _create_classifier(self, classes) -> Classifier:
         """Create a new classifier and add it. Then return it."""
         idx = self.phase - 1
         classifier = self._classifier_constructor(classes, idx=idx)
         # add new class labels to classifiers mapping
-        self._classes.extend(classes)
         self.classifiers.append(classifier)
         return classifier
 
-    def _set_controller_train(self, train):
-        if self.controller is not None:
-            self.controller.train(train)
-
-    def _set_classifiers_train(self, train):
+    def set_classifiers_train(self, train):
         for clf in self.classifiers:
             clf.train(train)
 
-    def set_train(self, train=False):
-        """Set the model and its parts into training or evaluation mode."""
-        self._set_controller_train(train)
-        self._set_classifiers_train(train)
 
-    def _train_new_classifier_start(self):
-        pass
+class JointModel(CIModelBase):
 
-    def _train_new_classifier_end(self):
-        pass
+    def __init__(self, config, train_source, train_transform, test_transform, logger: Logger):
+        # establish memory
+        super().__init__(config, logger)
+        mem_tr_size = int(config.memory_size * (1 - config.val_size))
+        mem_val_size = config.memory_size - mem_tr_size
+        sizes = [mem_tr_size, mem_val_size]
+        memory_manager = MemoryManagerBasic(sizes=sizes, source=train_source, train_transform=train_transform,
+                                            test_transform=test_transform, names=('train', 'val'))
+        self.train_memory, self.val_memory = memory_manager['train'], memory_manager['val']
+        self.memory_manager = memory_manager
+        self.controller = GrowingController(config)
 
-    def _get_ctrl_idx(self):
-        """Return current controller's index. If it doesnt exists yet, return None.
-        The controller's index signifies the phase it has been created and trained. So if the
-        index is 2, this controller can predict between the first two classifiers.
-        """
-        if self.controller is None:
-            return None
-        return self.controller.idx
+    def on_receive_phase_data(self, trainset):
+        self._introduce_new_classes(trainset.classes)
+        config = self.config
 
-    def create_new_controller(self) -> Controller:
-        """Create and assign the new controller.
-        The index assigned to the controller will be the current phase."""
-        idx = self.phase - 1
-        controller = create_controller(self.config, idx, self.classifiers, device=self.device)
-        self.controller = controller
-        return controller
+        # prepare train and validation sets
+        if self.phase > 1:
+            memory_valset = self.val_memory.get_dataset(train=False)
+            memory_trainset = self.train_memory.get_dataset(train=True)
+        else:
+            memory_valset = None
+            memory_trainset = None
 
-    def _train_controller_epoch(self, loader, optimizer, epoch, reporter: SourceReporter):
-        """Train the controller. Only train the controller. Classifiers are kept frozen.
-        """
-        # set everything in eval mode except for the controller
-        self.set_train(False)
-        self.controller.train()
+        trainset_train, trainset_val = trainset.split(test_size=config.val_size)
+        train_loader = create_loader(config, main_dataset=trainset_train, memoryset=memory_trainset, shuffle=True)
+        val_loader = create_loader(config, trainset_val, memory_valset)
 
-        for mstate in self.feature_extractor.feed(loader):
-            ctrl_state = self.controller.feed(state=mstate)
-            outputs, labels = ctrl_state.outputs, ctrl_state.parent.labels
-            loss = self.controller.compute_loss(outputs, labels)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+        # start training
+        self.logger.console.info(f'Training the model')
+        self._train(train_loader, val_loader)
 
-            ctrl_state.loss = loss
-            ctrl_state.epoch = epoch
-            reporter.update(mstate)
+        # Updates memory
+        self.logger.console.info('Updating memory')
+        # only trained samples can go into train memory to maintain unbiased validation in the future
+        self.train_memory.update(trainset_train.ids, trainset.classes)
+        self.val_memory.update(trainset_val.ids, trainset.classes)
+        self.memory_manager.log_memory_sizes()
 
-    @torch.no_grad()
-    def _val_controller(self, loader, epoch, reporter: SourceReporter):
-        self.set_train(False)
-        for mstate in self.feature_extractor.feed(loader):
-            ctrl_state = self.controller.feed(state=mstate)
-            ctrl_state.epoch = epoch
-            ctrl_outs = ctrl_state.outputs
-            labels = mstate.labels
-            ctrl_state.loss = self.controller.compute_loss(ctrl_outs, labels)
-            reporter.update(mstate)
+    def _introduce_new_classes(self, classes):
+        classifier = self._classifier_constructor(classes, idx=self.phase - 1)
+        self.classifiers.append(classifier)
+        self.controller.extend(classes, classifier.output_size)
 
-    def _train_a_new_controller_start(self):
-        pass
-
-    def _train_a_new_controller_epoch_start(self, epoch, lr_scheduler):
-        self.logger.log({CTRL_EPOCH: epoch})
+    def _train_epoch_start(self, epoch, lr_scheduler):
+        self.logger.log({'epoch': epoch})
         lr = lr_scheduler.get_last_lr()[0]
-        self.logger.log({CTRL_LR: lr})
+        self.logger.log({'lr': lr})
 
-    def _train_a_new_controller_epoch_end(self, epoch):
+    def _train_epoch_end(self, epoch):
         self.logger.commit()
 
-    def _train_a_new_controller_end(self):
-        pass
-
-    def train_controller(self, ctrl_memory: Memory, shared_memory: Memory):
-        """Create a new controller and train it. It will replace the current controller with the new one."""
+    def _train(self, train_loader, val_loader):
         config = self.config
-        # create combined dataset
-        dataset = ctrl_memory.get_dataset(train=True).mix(shared_memory.get_dataset(train=True))
-        if len(dataset) == 0:
-            raise ValueError('Controller memory + shared memory is empty. Cannot train controller.')
-        optimizer = self.controller.get_optimizer()
-        trainset, valset = dataset.split(test_size=config.val_size)
-        train_loader = create_loader(config, trainset)
-        val_loader = create_loader(config, valset)
-        stopper = TrainingStopper(config.ctrl)
-        lr_scheduler = get_controller_lr_scheduler(config, optimizer)
+        stopper = TrainingStopper(config)
+        optimizer = self.create_optimizer()
+        lr_scheduler = _get_lr_scheduler(config, optimizer)
 
-        self._train_a_new_controller_start()
-        for epoch in range(1, config.ctrl['epochs'] + 1):
+        for epoch in range(1, config.epochs + 1):
             if stopper.do_stop():
                 break
-            self._train_a_new_controller_epoch_start(epoch, lr_scheduler)
-            source_reporter = SourceReporter()
-            train_reporter = ControllerReporter(self.config, self.logger, source_reporter, self.controller, 'train')
-            self._train_controller_epoch(train_loader, optimizer, epoch, source_reporter)
-            source_reporter.end()
-            if len(valset) > 0:
-                source_reporter = SourceReporter()
-                validation_reporter = ControllerReporter(self.config, self.logger, source_reporter, self.controller,
-                                                         'validation')
-                self._val_controller(val_loader, epoch, source_reporter)
-                source_reporter.end()
-                loss = validation_reporter.get_average_loss()
-            else:
-                loss = train_reporter.get_average_loss()
-            lr_scheduler.step(loss)
-            stopper.update(loss)
-            self._train_a_new_controller_epoch_end(epoch)
-        self._train_a_new_controller_end()
-
-    def _test_start(self):
-        pass
-
-    def _test_end(self):
-        self.logger.commit()
-
-    @torch.no_grad()
-    def test(self, dataset):
-        """
-        Test the model in whole and in parts.
-
-        Args:
-            dataset (PartialDataset): cumulative testset, containing all seen classes
-        """
-        self.set_train(False)
-        source_reporter = SourceReporter()
-        create_test_reporter(self.config, self.logger, source_reporter, self.classifiers, self.controller,
-                             dataset.classes)
-        loader = create_loader(self.config, dataset)
-
-        for mstate in self._feed_everything(loader):
-            source_reporter.update(mstate)
-
-        source_reporter.end()
-        self._test_end()
-
-    def _train_classifier_epoch(self, classifier: Classifier, loader, criterion, optimizer, epoch,
-                                reporter: SourceReporter):
-        """Train classifier for one epoch."""
-        assert isinstance(loader.dataset, PartialDataset) and loader.dataset.is_train()
-        self.set_train(False)
-        classifier.train()
-        for mstate in self.feature_extractor.feed(loader):
-            clf_state = classifier.feed(state=mstate)
-            outputs, labels, labels_np = clf_state.outputs, clf_state.labels, clf_state.parent.labels_np
-            loss = classifier.get_loss(outputs, labels, criterion)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            clf_state.loss = loss
-            clf_state.epoch = epoch
-            reporter.update(clf_state)
-
-    @torch.no_grad()
-    def _val_classifier(self, classifier: Classifier, loader: DataLoader, criterion, reporter: SourceReporter):
-        assert isinstance(loader.dataset, PartialDataset) and not loader.dataset.is_train()
-        self.set_train(False)
-        for mstate in self.feature_extractor.feed(loader):
-            clf_state = classifier.feed(state=mstate)
-            outputs, labels, labels_np = clf_state.outputs, clf_state.labels, clf_state.labels_np
-            loss = classifier.get_loss(outputs, labels, criterion)
-            clf_state.loss = loss
-            mstate = clf_state.parent
-            reporter.update(mstate)
-
-    def _train_classifier_epoch_start(self, epoch, lr_scheduler):
-        self.logger.log({CLF_EPOCH: epoch})
-        lr = lr_scheduler.get_last_lr()[0]
-        self.logger.log({CLF_LR: lr})
-
-    def _train_classifier_epoch_end(self, epoch):
-        self.logger.commit()
-
-    def _train_classifier(self, classifier: Classifier, train_loader, val_loader, criterion, optimizer):
-        """Train the classifier for a number of epochs.
-        If val_loader is None, do not validate.
-        """
-        config = self.config
-        stopper = TrainingStopper(config.clf)
-        lr_scheduler = get_classifier_lr_scheduler(config, optimizer)
-
-        for epoch in range(1, config.clf['epochs'] + 1):
-            if stopper.do_stop():
-                break
-            self._train_classifier_epoch_start(epoch, lr_scheduler)
-            source_reporter = SourceReporter()
-            train_reporter = ClassifierReporter(self.config, self.logger, source_reporter, classifier, 'train')
-            self._train_classifier_epoch(classifier, train_loader, criterion, optimizer, epoch, source_reporter)
-            source_reporter.end()
+            self._train_epoch_start(epoch, lr_scheduler)
+            train_loss = self._train_epoch(epoch, train_loader, optimizer)
 
             # validate if validation dataset is not empty
             if len(val_loader.dataset) > 0:
-                source_reporter = SourceReporter()
-                val_reporter = ClassifierReporter(self.config, self.logger, source_reporter, classifier, 'validation')
-                self._val_classifier(classifier, val_loader, criterion, source_reporter)
-                source_reporter.end()
-                loss = val_reporter.get_average_loss()
-                classifier.checkpoint(optimizer, loss, epoch)
+                loss = self._validate(val_loader)
             else:
-                loss = train_reporter.get_average_loss()
+                loss = train_loss
+            self._checkpoint(optimizer, loss, epoch)
             lr_scheduler.step(loss)
             stopper.update(loss)
-            self._train_classifier_epoch_end(epoch)
+            self._train_epoch_end(epoch)
 
         # load best checkpoint
-        classifier.load_best()
+        self._load_best()
 
-        # upload as artifact
-        upload_classifier(classifier)
+    @property
+    def last_classifier(self):
+        return self.classifiers[-1]
 
-    def train_new_classifier(self, newset: PartialDataset, clf_memory: Memory, ctrl_memory, shared_memory: Memory):
-        """Train a new classifier on the dataset. Samples in the memories will serve as "other" category.
+    def _checkpoint(self, optimizer, loss, epoch):
+        """Checkpoints the last classifier and the final layer."""
+        # we don't save the optimizer
+        self.controller.checkpoint(None, loss, epoch)
+        self.last_classifier.checkpoint(None, loss, epoch)
 
-        Algorithm:
-            if training with other:
-                newset_tr, newset_val = split(newset)
-                if shared memory (ctrl_memory is clf_memory):  # -> split the shared memory
-                    otherset_tr, otherset_val = split(ctrl_memory)  # (or clf_memory, doesn't matter)
-                else:  # use its own memory on full and validate on ctrl memory
-                    otherset_tr = clf_memory
-                    otherset_val = ctrl_memory
-            else:  # no other
-                split newset and just train with newset, (memory storages only contain past "other" data)
+    def _load_best(self):
+        """Loads the best weights for the last classifier and the final layer."""
+        self.controller.load_best()
+        self.last_classifier.load_best()
 
-            2. train with newset_tr + otherset_tr
-                and validate with newset_val + otherset_val
+    def create_optimizer(self):
+        """Creates an optimizer for parameters of the last classifier and the final layer."""
+        config = self.config
+        last_classifier = self.classifiers[-1]
+        optimizer = torch.optim.SGD(params=itertools.chain(last_classifier.parameters(), self.controller.parameters()),
+                                    lr=config.lr, momentum=0.9)
+        return optimizer
 
-        Args:
-            clf_memory: memory storage of classifiers
-            ctrl_memory: memory storage of controller
-            shared_memory: shared memory storage
-            newset (PartialDataset): dataset of new class samples
-        """
-        new_classes = newset.classes
-        val_size = self.config.val_size
+    def _train_epoch(self, epoch, loader, optimizer):
+        assert isinstance(loader.dataset, PartialDataset) and loader.dataset.is_train()
+        # set everything to eval mode except the last classifier and the final layer
+        self.set_train(False)
+        last_classifier = self.classifiers[-1]
+        last_classifier.train()
+        self.controller.train()
+        loss_meter, ctrl_loss_meter = AverageMeter(), AverageMeter()
 
-        def get_othersets(clf_memory: Memory, ctrl_memory: Memory, shared_memory: Memory, val_size: float):
-            """
+        for mstate in self._init_states(loader):
+            total_loss = self._get_total_loss(mstate)
+            optimizer.zero_grad()
+            total_loss.backward()
+            optimizer.step()
+            loss_meter.update(total_loss, mstate.batch_size)
+            ctrl_loss_meter.update(mstate.ctrl_state.loss, mstate.batch_size)
 
-            Args:
-                clf_memory (Memory):
-                ctrl_memory (Memory):
-                shared_memory (Memory):
-                val_size (float): the ratio of validation set relative to total (clf + ctrl + shared)
-            """
-            # get number of samples in each of memories
-            cf = clf_memory.get_n_samples()
-            ct = ctrl_memory.get_n_samples()
-            sh = shared_memory.get_n_samples()
-            tot = cf + ct + sh
+        self.logger.log({'train_loss': loss_meter.avg, 'ctrl_train_loss': ctrl_loss_meter.avg})
+        return loss_meter.avg
 
-            # handle a degenarate case
-            # if classifier memory and shared memory is zero, then there is nothing for the
-            # classifier as 'otherset', so we just return two empty datasets
-            if cf + sh == 0:
-                otherset_tr = clf_memory.get_dataset(train=True)
-                otherset_val = clf_memory.get_dataset(train=False)
-                return otherset_tr, otherset_val
-
-            # otherset validation is better not to takes share from classifier or shared memory
-            # so first we include all controller memory samples in this set (then we check if we
-            # need more validation data, which will come from classifier + shared memory
-            otherset_val = ctrl_memory.get_dataset(train=False)
-
-            # combine shared memory and classifier memory into a dataset
-            otherset = shared_memory.get_dataset(train=True).mix(clf_memory.get_dataset(train=True))
-
-            # compute how much more validation samples we need
-            n_val_samples_left = tot * val_size - ct
-
-            # if still need more validation data, get from shared + clf
-            if n_val_samples_left > 0:
-                left_val_size = (n_val_samples_left) / (cf + sh)
-                otherset_tr, otherset_val2 = otherset.split(test_size=val_size)
-                otherset_val = otherset_val.mix(otherset_val2)
-            else:
-                otherset_tr = otherset
-            return otherset_tr, otherset_val
-
-        # split new dataset into train and validation
-        newset_tr, newset_val = newset.split(test_size=val_size)
-
-        # make up otherset, a dataset consisting of "other" categories
-        otherset_tr, otherset_val = None, None
-        if self.config.other:
-            otherset_tr, otherset_val = get_othersets(clf_memory=clf_memory, ctrl_memory=ctrl_memory,
-                                                      shared_memory=shared_memory, val_size=val_size)
-
-        # create the new classifier, prepared for new classes
-        classifier = self._create_classifier(new_classes)
-
-        # define criterion; includes class-balancing logic
-        criterion = get_classification_criterion(self.config, newset_tr, otherset_tr, self.device)
-
-        # create optimizer
-        optimizer = self._create_classifier_optimizer(classifier)
-
-        # create final training set, combination of new and other categories
-        train_loader = create_loader(self.config, newset_tr,
-                                     otherset_tr if otherset_tr is not None and len(otherset_tr) > 0 else None)
-
-        # create final validation set, combination of new and other categories
-        val_loader = create_loader(self.config, newset_val,
-                                   otherset_val if otherset_val is not None and len(otherset_val) > 0 else None,
-                                   shuffle=False)
-
-        # start training
-        self._train_new_classifier_start()
-        self._train_classifier(classifier, train_loader, val_loader, criterion, optimizer)
-        self._train_new_classifier_end()
+    def _init_states(self, loader):
+        return init_states(self.config, self, loader, self.device)
 
     @torch.no_grad()
-    def _feed_everything(self, loader: DataLoader) -> Iterable[ModelState]:
-        """Feed everything (controller, clasifiers) and return generator of ModelState"""
-        states = init_states(self.config, loader, self.device)
-        for state in states:
-            state = self.feature_extractor.feed(state=state)
-            if self.controller is not None:
-                self.controller.feed(state=state)
-            for clf in self.classifiers:
-                clf.feed(state=state)
-            yield state
+    def _validate(self, loader):
+        assert isinstance(loader.dataset, PartialDataset) and not loader.dataset.is_train()
+        self.set_train(False)
+        loss_meter, ctrl_loss_meter = AverageMeter(), AverageMeter()
+        for mstate in self._init_states(loader):
+            total_loss = self._get_total_loss(mstate)
+            batch_size = mstate.batch_size
+            loss_meter.update(total_loss, batch_size)
+            ctrl_loss_meter.update(mstate.ctrl_state.loss, batch_size)
+        self.logger.log({'val_loss': loss_meter.avg, 'ctrl_val_loss': ctrl_loss_meter.avg})
+        return loss_meter.avg
+
+    @torch.no_grad()
+    def test(self, dataset):
+        """Test on a balanced dataset."""
+        self.set_train(False)
+        loader = create_loader(self.config, dataset)
+        loss_meter, ctrl_loss_meter = AverageMeter(), AverageMeter()
+
+        # gather stuff
+        all_predictions = []
+        all_labels = []
+        for mstate in self._init_states(loader):
+            final_predictions = mstate.ctrl_state.predictions
+            all_predictions.append(final_predictions)
+            all_labels.append(mstate.labels_np)
+            loss_meter.update(self._get_total_loss(mstate), mstate.batch_size)
+            ctrl_loss_meter.update(mstate.ctrl_state.loss, mstate.batch_size)
+
+        all_predictions = np.concatenate(all_predictions)
+        all_labels = np.concatenate(all_labels)
+        cm = confusion_matrix(all_labels, all_predictions, labels=self.controller.classes)
+        self.logger.log_confusion_matrix(cm, labels=self.controller.classes)
+        accuracy = get_accuracy(cm)
+        self.logger.log({'test_loss': loss_meter.avg, 'ctrl_test_loss': ctrl_loss_meter.avg, 'test_acc': accuracy})
+        self.logger.commit()
+
+    def on_phase_end(self, phase):
+        assert self.phase == phase
+        # freeze the last learned classifier
+        last_classifier = self.classifiers[-1]
+        last_classifier.eval()
+        for p in last_classifier.parameters():
+            p.requires_grad = False
+
+    def feed_final_layer(self, mstate):
+        if mstate.final_outputs is not None:
+            return mstate.final_outputs
+
+        mstate.classes = self.controller.classes
+        all_clf_outputs = [mstate.get_classifier_state(clf).outputs for clf in self.classifiers]
+        final_outputs = self.controller(all_clf_outputs)
+        mstate.final_outputs = final_outputs
+        return final_outputs
+
+    def set_train(self, train):
+        self.set_classifiers_train(train)
+        self.controller.train(train)
+
+    def _get_total_loss(self, mstate):
+        lam = self.config['lam']
+        last_clf_loss = mstate.classifier_states[self.last_classifier].loss
+        ctrl_loss = mstate.ctrl_state.loss
+        return lam * last_clf_loss + ctrl_loss

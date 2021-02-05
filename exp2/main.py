@@ -1,12 +1,10 @@
-import numpy as np
 import wandb
 import yaml
 
 import utils
 from exp2.config import parse_args, load_configs
 from exp2.data import prepare_data
-from exp2.memory import MemoryManager
-from exp2.model import Model
+from exp2.model import JointModel
 from logger import Logger
 
 console_logger = utils.get_console_logger(name='main')
@@ -15,58 +13,28 @@ console_logger = utils.get_console_logger(name='main')
 def run(config):
     logger = Logger(config, console_logger=console_logger)
     console_logger.info('config:' + str(config))
+
     # prepare data
     data = prepare_data(config)
-    memory_manager = MemoryManager(config, data)
-    clf_memory, ctrl_memory, shared_memory = memory_manager.get_memories()
-    model = Model(config, logger=logger)
-    logger.log({'class_order': data.class_order})
 
-    # here comes the training algorithm
-    do_train_controller = config.phase is None
+    # create model
+    model = JointModel(config, data.train_source, data.train_transform, data.test_transform, logger=logger)
+
     # phases start with 1, classifier indices start with 0 (phase - 1)
     for phase in range(1, config.n_phases + 1):
-        is_active_phase = config.phase is None or config.phase == phase
-        console_logger.info(f'== Starting phase {phase} ==')
+        console_logger.info(f'>>> >>> Starting phase {phase} <<< <<<')
         logger.pin('phase', phase)
         model.phase_start(phase)
 
         # get the new samples
         trainset, testset, cumul_testset = data.get_phase_data(phase)
+        model.on_receive_phase_data(trainset)
 
-        # add samples to ctrl_memory, and remove those from trainset
-        console_logger.info('Updating controller memory')
-        # if it is the first phase, controller memory takes away half of its size, because that much will be left
-        # before it really trains in the next phase
-        max_size = ctrl_memory.max_size if phase > 1 else ctrl_memory.max_size // 2
-        added_ids = ctrl_memory.update(trainset.ids, new_classes=trainset.classes, max_size=max_size)
-        left_ids = np.setdiff1d(trainset.ids, added_ids)
-        trainset = trainset.subset(left_ids)
-
-        if is_active_phase:
-            # train a new classifier on new samples
-            console_logger.info('Training a new classifier')
-            model.train_new_classifier(trainset, clf_memory=clf_memory, ctrl_memory=ctrl_memory,
-                                       shared_memory=shared_memory)
-
-        # update classifier and share memory
-        console_logger.info('Updating classifier and shared memory')
-        memory_manager.update_memories(trainset, phase=phase)
-
-        if do_train_controller:  # training a controller doesn't make sense if training only a single specific phase
-            # train a new controller
-            model.create_new_controller()
-            console_logger.info('Training a new controller')
-            model.train_controller(ctrl_memory=ctrl_memory, shared_memory=shared_memory)
-
-        if config.phase is None or phase == config.n_phases:
-            # test the model
-            console_logger.info('Testing the model')
-            model.test(cumul_testset)
+        # test the model
+        console_logger.info('Testing the model')
+        model.test(cumul_testset)
+        logger.commit()
         model.phase_end()
-
-    # inform phase end
-    memory_manager.on_training_end()
 
 
 if __name__ == '__main__':
@@ -84,7 +52,7 @@ if __name__ == '__main__':
     if args.wandb_group:
         init_dict['group'] = args.wandb_group
 
-    wandb.init(config=config_dict, job_type='clf-training', **init_dict)
+    wandb.init(config=config_dict, **init_dict)
     config = wandb.config
 
     # extend logging directory with the current unique run name
