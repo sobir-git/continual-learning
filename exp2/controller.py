@@ -210,6 +210,8 @@ class GrowingController(Checkpoint, ClassMapping, nn.Module):
         super(GrowingController, self).extend(new_classes)
         self.linear.append(n_new_inputs, len(new_classes))
         self.bn = nn.BatchNorm1d(self.bn.num_features + n_new_inputs)
+        device = self.bn.weight.device
+        self.bn.to(device)
 
         # checkpoint becames incompatible, so we remove it
         self.remove_checkpoint()
