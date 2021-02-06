@@ -232,13 +232,15 @@ class JointModel(CIModelBase):
     def _validate(self, loader):
         assert isinstance(loader.dataset, PartialDataset) and not loader.dataset.is_train()
         self.set_train(False)
-        loss_meter, ctrl_loss_meter = AverageMeter(), AverageMeter()
+        loss_meter, ctrl_loss_meter, acc_meter = AverageMeter(), AverageMeter(), AverageMeter()
         for mstate in self._init_states(loader):
             total_loss = self._get_total_loss(mstate)
             batch_size = mstate.batch_size
             loss_meter.update(total_loss, batch_size)
             ctrl_loss_meter.update(mstate.ctrl_state.loss, batch_size)
-        self.logger.log({'val_loss': loss_meter.avg, 'ctrl_val_loss': ctrl_loss_meter.avg})
+            acc_meter.update(get_accuracy(predictions=mstate.ctrl_state.predictions, labels=mstate.labels_np),
+                             batch_size)
+        self.logger.log({'val_loss': loss_meter.avg, 'ctrl_val_loss': ctrl_loss_meter.avg, 'val_acc': acc_meter.avg})
         return loss_meter.avg
 
     @torch.no_grad()

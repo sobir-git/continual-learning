@@ -105,7 +105,7 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
     def get_predictions(self, outputs) -> np.ndarray:
         """Get predictions given controller outputs."""
         local_predictions = torch.argmax(outputs, 1)
-        return self.globalize_labels(local_predictions, 'cpu')
+        return self.globalize_labels(local_predictions, 'cpu').numpy()
 
     def get_loss(self, outputs, labels):
         labels = self.localize_labels(labels)
