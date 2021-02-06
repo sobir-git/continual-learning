@@ -30,6 +30,7 @@ class Classifier(Checkpoint, nn.Module):
         self.idx: int = idx
         self._cls_idx = {cls: i for i, cls in enumerate(classes)}
         self.config = config
+        self.other = config.other
         self.classes: List[int] = list(classes)
 
     def forward(self, *inputs):
@@ -89,6 +90,11 @@ class Classifier(Checkpoint, nn.Module):
             labels: class labels (unmapped)
         """
         local_labels = self.localize_labels(labels)
+        if not self.other:
+            n = len(self.classes)
+            idx = local_labels != n  # filter out samples belonging to other classes
+            outputs = outputs[idx]
+            local_labels = local_labels[idx]
         loss = criterion(outputs, local_labels)
         return loss
 
