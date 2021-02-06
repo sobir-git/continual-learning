@@ -29,3 +29,4 @@ torch:
   pin_memory: false
   non_blocking: true
 input_size: [ 3, 32, 32 ]
+warmup_epochs: 1

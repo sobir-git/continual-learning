@@ -165,6 +165,7 @@ class JointModel(CIModelBase):
         for epoch in range(1, config.epochs + 1):
             if stopper.do_stop():
                 break
+            self.controller.set_warmup(epoch <= config.warmup_epochs)
             self._train_epoch_start(epoch, lr_scheduler)
             train_loss = self._train_epoch(epoch, train_loader, optimizer)
 
