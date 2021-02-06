@@ -15,9 +15,10 @@ class ZeroInitLinear(nn.Linear):
             torch.fill_(self.bias, 0)
 
 
-class GrowingLinear(DeviceTracker, nn.Module):
-    def __init__(self, in_features, out_features, bias=True):
+class GrowingLinear(nn.Module):
+    def __init__(self, in_features, out_features, bias=True, device='cpu'):
         super().__init__()
+        self.device = device
         self._use_bias = bias
         self._fin = [0, in_features]
         self._fout = [0, out_features]
@@ -33,19 +34,17 @@ class GrowingLinear(DeviceTracker, nn.Module):
         """Initialize weights transforming input group i to output group j"""
         w = torch.zeros(self._fout[j], self._fin[i], device=self.device)
         if self._use_bias:
-            b = torch.zeros(self._fout[j])
+            b = torch.zeros(self._fout[j], device=self.device)
         else:
             b = None
         self._setw(i, j, w, b)
 
     @torch.no_grad()
     def _setw(self, i, j, w, b=None):
-        w = w.to(self.device)
-        w = Parameter(w, requires_grad=True)
+        w = Parameter(w, requires_grad=True).to(self.device)
         self.register_parameter(f'w{i}{j}', w)
         if b is not None:
-            b = b.to(self.device)
-            b = Parameter(b, requires_grad=True)
+            b = Parameter(b, requires_grad=True).to(self.device)
         self.register_parameter(f'b{i}{j}', b)
 
     @torch.no_grad()
@@ -53,14 +52,14 @@ class GrowingLinear(DeviceTracker, nn.Module):
         # combine existing weights
         fin0 = self._fin[0]
         fout0 = self._fout[0]
-        w00 = torch.empty(self.out_features, self.in_features)
+        w00 = torch.empty(self.out_features, self.in_features, device=self.device)
         w00[:fout0, :fin0] = self.w00
         w00[:fout0, fin0:] = self.w10
         w00[fout0:, :fin0] = self.w01
         w00[fout0:, fin0:] = self.w11
 
         if self._use_bias:
-            b00 = torch.empty(self.out_features)
+            b00 = torch.empty(self.out_features, device=self.device)
             b00[:fout0] = self.b00 + self.b10
             b00[fout0:] = self.b01 + self.b11
         else:
@@ -90,13 +89,14 @@ class GrowingLinear(DeviceTracker, nn.Module):
         )
 
 
-class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
-    def __init__(self, config):
+class GrowingController(Checkpoint, ClassMapping, nn.Module):
+    def __init__(self, config, device='cpu'):
         super().__init__()
+        self.device = device
         self.config = config
-        self.linear = GrowingLinear(0, 0, bias=config.ctrl_bias)
-        self.bn = nn.BatchNorm1d(0)
-        self.criterion = nn.CrossEntropyLoss()
+        self.linear = GrowingLinear(0, 0, bias=config.ctrl_bias, device=self.device)
+        self.bn = nn.BatchNorm1d(0).to(self.device)
+        self.criterion = nn.CrossEntropyLoss().to(self.device)
 
     def get_predictions(self, outputs) -> np.ndarray:
         """Get predictions given controller outputs."""

@@ -114,7 +114,7 @@ class JointModel(CIModelBase):
                                             test_transform=test_transform, names=('train', 'val'))
         self.train_memory, self.val_memory = memory_manager['train'], memory_manager['val']
         self.memory_manager = memory_manager
-        self.controller = GrowingController(config).to(self.device)
+        self.controller = GrowingController(config, device=self.device)
 
     def on_receive_phase_data(self, trainset):
         self._introduce_new_classes(trainset.classes)
