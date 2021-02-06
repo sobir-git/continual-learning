@@ -38,13 +38,14 @@ class GrowingLinear(DeviceTracker, nn.Module):
             b = None
         self._setw(i, j, w, b)
 
+    @torch.no_grad()
     def _setw(self, i, j, w, b=None):
         w = w.to(self.device)
-        w = Parameter(w)
+        w = Parameter(w, requires_grad=True)
         self.register_parameter(f'w{i}{j}', w)
         if b is not None:
             b = b.to(self.device)
-            b = Parameter(b)
+            b = Parameter(b, requires_grad=True)
         self.register_parameter(f'b{i}{j}', b)
 
     @torch.no_grad()
