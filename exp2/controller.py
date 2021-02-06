@@ -131,58 +131,69 @@ def create_controller(config, idx, classifiers, device) -> Controller:
     return net
 
 
+class ZeroInitLinear(nn.Linear):
+    def reset_parameters(self) -> None:
+        torch.fill_(self.weight, 0)
+        if self.bias is not None:
+            torch.fill_(self.bias, 0)
+
+
 class GrowingLinear(DeviceTracker, nn.Module):
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features, out_features, bias=True):
         super().__init__()
+        self._use_bias = True
         self._fin = [0, in_features]
         self._fout = [0, out_features]
         self.in_features = in_features
         self.out_features = out_features
-        self.w = dict()
-        self._initw(0, 0)
-        self._initw(0, 1)
-        self._initw(1, 0)
-        self._initw(1, 1)
+        self._initlin(0, 0)
+        self._initlin(0, 1)
+        self._initlin(1, 0)
+        self._initlin(1, 1)
 
     @torch.no_grad()
-    def _initw(self, i, j):
+    def _initlin(self, i, j):
         """Initialize weights transforming input group i to output group j"""
-        w = torch.zeros(self._fout[j], self._fin[i], device=self.device)
-        self._setw(i, j, w)
+        lin = ZeroInitLinear(self._fin[i], self._fout[j], bias=self._use_bias)
+        self._setlin(i, j, lin)
 
-    def _setw(self, i, j, w, requires_grad=True):
-        w = w.to(self.device)
-        p = Parameter(w, requires_grad=requires_grad)
-        self.w[i, j] = p
-        self.register_parameter(f'w{i}{j}', p)
+    def _setlin(self, i, j, lin: ZeroInitLinear):
+        lin = lin.to(self.device)
+        self.add_module(f'l{i}{j}', lin)
 
     @torch.no_grad()
     def append(self, in_features, out_features):
-        # combine existing weights
+        # combine existing weights and biases
         fin0 = self._fin[0]
         fout0 = self._fout[0]
-        w = self.w
-        w00 = torch.empty(self.out_features, self.in_features, device=self.device)
-        w00[:fout0, :fin0] = w[0, 0]
-        w00[:fout0, fin0:] = w[1, 0]
-        w00[fout0:, :fin0] = w[0, 1]
-        w00[fout0:, fin0:] = w[1, 1]
-        self._setw(0, 0, w00)
+        lin = ZeroInitLinear(self.in_features, self.out_features).to(self.device)
+        w = lin.weight.data  # weights
+        b = lin.bias.data  # biases
+        w[:fout0, :fin0] = self.l00.weight.data
+        w[:fout0, fin0:] = self.l10.weight.data
+        w[fout0:, :fin0] = self.l01.weight.data
+        w[fout0:, fin0:] = self.l11.weight.data
+
+        torch.fill_(b, 0)
+        b[:fout0] += self.l00.bias.data
+        b[:fout0] += self.l10.bias.data
+        b[fout0:] += self.l01.bias.data
+        b[fout0:] += self.l11.bias.data
+        self._setlin(0, 0, lin)
 
         # new weights
         self._fout = [sum(self._fout), out_features]
         self._fin = [sum(self._fin), in_features]
         self.in_features = sum(self._fin)
         self.out_features = sum(self._fout)
-        self._initw(0, 1)
-        self._initw(1, 0)
-        self._initw(1, 1)
+        self._initlin(0, 1)
+        self._initlin(1, 0)
+        self._initlin(1, 1)
 
     def forward(self, inputs):
-        w = self.w
         inputs0, inputs1 = inputs[:, :self._fin[0]], inputs[:, self._fin[0]:]
-        o0 = F.linear(inputs0, w[0, 0]) + F.linear(inputs1, w[1, 0])
-        o1 = F.linear(inputs0, w[0, 1]) + F.linear(inputs1, w[1, 1])
+        o0 = self.l00(inputs0) + self.l10(inputs1)
+        o1 = self.l01(inputs0) + self.l11(inputs1)
         o = torch.cat([o0, o1], dim=1)
         return o
 
@@ -196,7 +207,7 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.linear = GrowingLinear(0, 0)
+        self.linear = GrowingLinear(0, 0, bias=config.ctrl_bias)
         self.bn = nn.BatchNorm1d(0)
         self.criterion = nn.CrossEntropyLoss()
 
@@ -211,7 +222,9 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
         return loss
 
     def set_warmup(self, warmup=True):
-        self.linear.w[0, 0].requires_grad = not warmup
+        """Freeze linear.l00 if warmup, else unfreeze."""
+        for p in self.linear.l00.parameters():
+            p.requires_grad = not warmup
 
     def extend(self, new_classes, n_new_inputs):
         super(GrowingController, self).extend(new_classes)

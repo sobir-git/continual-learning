@@ -150,6 +150,15 @@ def create_lr_scheduler(config, optimizer):
         raise ValueError(f"config.lr_scheduler be one of 'exp', 'reduce_on_plateu' but got {config.lr_scheduler}")
 
 
+def scheduler_step(lr_scheduler, loss):
+    if isinstance(lr_scheduler, sch.ExponentialLR):
+        lr_scheduler.step()
+    elif isinstance(lr_scheduler, sch.StepLR):
+        lr_scheduler.step()
+    elif isinstance(lr_scheduler, sch.ReduceLROnPlateau):
+        lr_scheduler.step(loss)
+
+
 def get_last_learning_rate(lr_scheduler):
     try:
         return lr_scheduler.get_last_lr()[0]
@@ -211,10 +220,7 @@ def train_model(config, model: Checkpoint, mask, train_loader: DataLoader, val_l
             stopper.update(val_metric)
 
             # schedule learning rate
-            if not isinstance(lr_scheduler, sch.ReduceLROnPlateau):
-                lr_scheduler.step()
-            else:
-                lr_scheduler.step(val_metric)
+            scheduler_step(lr_scheduler, val_metric)
 
         logger.log({'lr': get_last_learning_rate(lr_scheduler)})
         logger.commit()

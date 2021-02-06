@@ -1,5 +1,6 @@
 import argparse
 from collections import defaultdict
+from typing import Sequence
 
 import yaml
 
@@ -9,9 +10,10 @@ from utils import get_console_logger
 console_logger = get_console_logger(__name__)
 
 
-def make_nested(d, subkeys, delim='_'):
+def make_nested(d, subkeys: Sequence[str] = None, delim='_'):
     """Makes the dictionary nested (one level), for keys that start with one of the given subkeys.
     Returns a new dictionary."""
+    subkeys = subkeys or []
     new_d = defaultdict(dict)
     delim_len = len(delim)
     for k, v in d.items():
@@ -26,7 +28,7 @@ def make_nested(d, subkeys, delim='_'):
     return dict(new_d)
 
 
-def load_configs(config_files):
+def load_configs(config_files, subkeys=None):
     """Load configs on top of each other, overriding one another.
     Also assure that the base config has every key that subsequent configs have.
     """
@@ -35,7 +37,7 @@ def load_configs(config_files):
         console_logger.info('Loading config %s', path)
         with open(path) as f:
             y = yaml.safe_load(f)
-            y = make_nested(y, ['clf', 'ctrl'])
+            y = make_nested(y, subkeys)
             if config_dict:
                 assure_subdict(y, config_dict)
             dict_deep_update(config_dict, y)

@@ -6,7 +6,7 @@ import torch
 from sklearn.metrics import confusion_matrix
 from torch import nn
 
-from baselines.simple_replay import create_lr_scheduler, get_last_learning_rate
+from baselines.simple_replay import create_lr_scheduler, get_last_learning_rate, scheduler_step
 from exp2.classifier import Classifier
 from exp2.controller import GrowingController
 from exp2.data import create_loader, PartialDataset
@@ -171,12 +171,12 @@ class JointModel(CIModelBase):
 
             # validate if validation dataset is not empty
             if len(val_loader.dataset) > 0:
-                loss = self._validate(val_loader)
+                val_metric = self._validate(val_loader)
             else:
-                loss = train_loss
-            self._checkpoint(optimizer, loss, epoch)
-            lr_scheduler.step(loss)
-            stopper.update(loss)
+                val_metric = train_loss
+            self._checkpoint(optimizer, val_metric, epoch)
+            scheduler_step(lr_scheduler, val_metric)
+            stopper.update(val_metric)
             self._train_epoch_end(epoch)
 
         # load best checkpoint
