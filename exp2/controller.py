@@ -186,6 +186,11 @@ class GrowingLinear(DeviceTracker, nn.Module):
         o = torch.cat([o0, o1], dim=1)
         return o
 
+    def extra_repr(self) -> str:
+        return 'in_features={}, out_features={}'.format(
+            self.in_features, self.out_features
+        )
+
 
 class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
     def __init__(self, config):

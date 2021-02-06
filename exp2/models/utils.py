@@ -128,7 +128,8 @@ class Checkpoint(nn.Module):
         d = torch.load(checkpoint_file)
         self._min_val_loss = d['val_loss']
         self.load_state_dict(d['state_dict'])
-        console_logger.debug('Loaded checkpoint (from epoch %s): %s', d['epoch'], checkpoint_file)
+        console_logger.debug(f'Loaded checkpoint {self.__class__.__name__} (from epoch %s): %s', d['epoch'],
+                             checkpoint_file)
         return d
 
     def load_best(self):
@@ -143,12 +144,9 @@ class Checkpoint(nn.Module):
 
 
 class DeviceTracker(nn.Module):
-    __device = torch.device('cpu')
-
-    def to(self, device, *args, **kwargs):
-        self.__device = device
-        return super(DeviceTracker, self).to(device, *args, **kwargs)
-
     @property
     def device(self):
-        return self.__device
+        try:
+            return next(self.parameters()).data.device
+        except StopIteration:
+            return torch.device('cpu')
