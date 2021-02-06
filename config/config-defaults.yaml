@@ -6,12 +6,13 @@ memory_size: 500
 epochs: 50
 epochs_tol: 20
 lr: 0.01
-lr_scheduler: poly1
+lr_scheduler: exp
 min_lr: 1.0e-05
 optimizer: SGD
 lam: 1.
-gamma: 0.975
+gamma: 0.95
 lr_patience: 3
+lr_step_size: 1
 val_size: 0.2
 pretrained: 'simple_net_20_classes'
 split_pos: 10

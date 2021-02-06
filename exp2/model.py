@@ -6,10 +6,10 @@ import torch
 from sklearn.metrics import confusion_matrix
 from torch import nn
 
+from baselines.simple_replay import create_lr_scheduler, get_last_learning_rate
 from exp2.classifier import Classifier
 from exp2.controller import GrowingController
 from exp2.data import create_loader, PartialDataset
-from exp2.lr_scheduler import _get_lr_scheduler
 from exp2.memory import MemoryManagerBasic
 from exp2.model_state import init_states
 from exp2.models.splitting import create_models, log_architectures
@@ -150,7 +150,7 @@ class JointModel(CIModelBase):
 
     def _train_epoch_start(self, epoch, lr_scheduler):
         self.logger.log({'epoch': epoch})
-        lr = lr_scheduler.get_last_lr()[0]
+        lr = get_last_learning_rate(lr_scheduler)
         self.logger.log({'lr': lr})
 
     def _train_epoch_end(self, epoch):
@@ -160,7 +160,7 @@ class JointModel(CIModelBase):
         config = self.config
         stopper = TrainingStopper(config)
         optimizer = self.create_optimizer()
-        lr_scheduler = _get_lr_scheduler(config, optimizer)
+        lr_scheduler = create_lr_scheduler(config, optimizer)
 
         for epoch in range(1, config.epochs + 1):
             if stopper.do_stop():
