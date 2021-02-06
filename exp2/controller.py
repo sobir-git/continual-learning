@@ -110,7 +110,8 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
     def set_warmup(self, warmup=True):
         """Freeze linear.l00 if warmup, else unfreeze."""
         self.linear.w00.requires_grad = not warmup
-        self.linear.b00.requires_grad = not warmup
+        if self.linear.b00 is not None:
+            self.linear.b00.requires_grad = not warmup
 
     def extend(self, new_classes, n_new_inputs):
         super(GrowingController, self).extend(new_classes)
