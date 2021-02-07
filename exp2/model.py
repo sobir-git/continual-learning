@@ -297,8 +297,9 @@ class JointModel(CIModelBase):
     def _get_total_loss(self, mstate):
         lam = self.config['lam']
         ctrl_loss = mstate.ctrl_state.loss
-        loss = ctrl_loss
         if lam > 0:
             last_clf_loss = mstate.classifier_states[self.last_classifier].loss
-            loss += lam * last_clf_loss
+            loss = ctrl_loss + lam * last_clf_loss
+        else:
+            loss = ctrl_loss
         return loss
