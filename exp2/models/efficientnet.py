@@ -354,9 +354,10 @@ class EfficientNetHead(nn.Module):
         return self.final(outputs)
 
 
-def split_efficientnet(config, model):
+def split_efficientnet(config, model: EfficientNet):
     """
     Split Efficientnet model into feature extractor and head constructor.
+    The returned feature extractor is frozen and in "eval" mode.
     """
 
     head_input_shape = None

@@ -45,7 +45,7 @@ def create_models(config, device) -> (FeatureExtractor, callable):
     return fe, classifier_constructor
 
 
-def _log_architecture(name, model, input_data=None):
+def log_architecture(name, model, input_data=None):
     from torchinfo import summary
     with open(wandb.run.dir + '/' + f'model_{name}.txt', 'w', encoding="utf-8") as f:
         f.write(str(model) + '\n')
@@ -56,7 +56,7 @@ def _log_architecture(name, model, input_data=None):
 
 def log_architectures(config, fe, classifier_constructor, device):
     x = torch.randn(1, *config.input_size, device=device)
-    _log_architecture('feature_extractor', fe, x)
+    log_architecture('feature_extractor', fe, x)
     x = fe(x)
     clf = classifier_constructor(range(config.n_classes_per_phase))
-    _log_architecture('classifier', clf, x)
+    log_architecture('classifier', clf, x)

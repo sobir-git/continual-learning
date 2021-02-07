@@ -118,6 +118,11 @@ class BiC(Checkpoint, ClassMapping, DeviceTracker, nn.Module):
         self.beta = Parameter(torch.tensor([0.], dtype=torch.float32, requires_grad=True))
         self.mask = None
 
+    @torch.no_grad()
+    def reset_params(self):
+        torch.fill_(self.alpha, 1.)
+        torch.fill_(self.beta, 0.)
+
     def set_biased_classes(self, classes):
         idx_on = [self._classes_inv[cls] for cls in classes]
         mask = torch.zeros(len(self.classes), dtype=torch.bool)
@@ -129,7 +134,8 @@ class BiC(Checkpoint, ClassMapping, DeviceTracker, nn.Module):
 
     def forward(self, inputs):
         outputs = inputs.clone()
-        outputs[:, self.mask] = outputs[:, self.mask] * self.alpha + self.beta
+        mapped_outputs = outputs[:, self.mask] * self.alpha + self.beta
+        outputs[:, self.mask] = mapped_outputs
         return outputs
 
     def train_(self, config, loader, forward_fn, logger):

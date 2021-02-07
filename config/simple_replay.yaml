@@ -8,12 +8,17 @@ batch_memory_samples: 64
 epochs: 100
 lr: 0.001
 model: "efficientnet-b0"
+pretrained: true  # use pretrained model
+clone_head: true  # use weights from head rather than random initialization
+split_pos: -3  # place where to split pretrained model into feature extractor and head
+split_pos_lower: null
 resize_input: 224
 download: true
 torch:
   num_workers: 3
   pin_memory: true
   non_blocking: true
+  drop_last: false
 datadir: ../data
 class_order_seed: -1
 lr_step_size: 5
@@ -21,9 +26,6 @@ gamma: 0.95
 lr_scheduler: exp
 lr_patience: 5  # number of epochs without improvement before lr is reduced (multiplied by gamma)
 min_lr: 0.0001
-pretrained: true  # use pretrained model
-clone_head: true  # use weights from head rather than random initialization
-split_pos: -1  # place where to split pretrained model into feature extractor and head
 epochs_tol: 10
 regularization: cutmix
 cutmix_prob: 0.5
@@ -33,6 +35,7 @@ reset_weights: 'output'  # reset weights before each phase; choices: 'none', 'ou
 faster_output_learning_rate: false  # use higher learning rate (x10) for the output layer
 val_metric: "loss"
 method: "gdumb"
-apply_bic: false
-bic_lr: 0.001
+bic: false
+bic_lr: 0.01
 bic_epochs: 10
+input_size: [ 3, 224, 224 ]
