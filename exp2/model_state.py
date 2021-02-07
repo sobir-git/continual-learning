@@ -5,11 +5,10 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from exp2.feature_extractor import FeatureExtractor
-
 if TYPE_CHECKING:
     from exp2.classifier import Classifier
     from exp2.controller import GrowingController
+    from exp2.model import JointModel
 
 
 def lazy_property(fn):
@@ -76,9 +75,11 @@ class LazyModelState:
     labels: torch.Tensor
     phase: int
 
-    def __init__(self, feature_extractor: 'FeatureExtractor', classifiers: List['Classifier'],
-                 controller: 'GrowingController', inputs, labels_np=None, labels=None, classes=None,
+    def __init__(self, model: 'JointModel', inputs, labels_np=None, labels=None, classes=None,
                  phase=None, ids=None):
+        self.feature_extractor = model.feature_extractor
+        self.controller = model.controller
+        self.classifiers = model.classifiers
         self.ids = ids
         self.phase = phase
         self.inputs = inputs
@@ -86,12 +87,9 @@ class LazyModelState:
         self.labels = labels
         self.classes = classes
         self.clf_criterion = torch.nn.CrossEntropyLoss()
-        self.feature_extractor = feature_extractor
-        self.classifiers = classifiers
-        self.controller = controller
         self.classifier_states = OrderedDict(
-            (clf, LazyClassifierState(clf, self, self.clf_criterion)) for clf in classifiers)
-        self.ctrl_state = LazyControllerState(controller, self)
+            (clf, LazyClassifierState(clf, self, self.clf_criterion)) for clf in self.classifiers)
+        self.ctrl_state = LazyControllerState(self.controller, self)
 
     @lazy_property
     def features(self) -> torch.Tensor:
@@ -105,11 +103,10 @@ class LazyModelState:
     def batch_size(self):
         return len(self.inputs)
 
-
-def init_states(config, model, loader: DataLoader, device, **kwargs) -> Iterable[LazyModelState]:
-    non_blocking = config.torch['non_blocking']
-    for inputs, labels, ids in loader:
-        labels_np = labels.numpy()
-        inputs, labels = inputs.to(device, non_blocking=non_blocking), labels.to(device, non_blocking=non_blocking)
-        yield LazyModelState(model.feature_extractor, model.classifiers, model.controller,
-                             inputs, labels=labels, labels_np=labels_np, **kwargs)
+    @staticmethod
+    def init_states(config, model, loader: DataLoader, device, **kwargs) -> Iterable['LazyModelState']:
+        non_blocking = config.torch['non_blocking']
+        for inputs, labels, ids in loader:
+            labels_np = labels.numpy()
+            inputs, labels = inputs.to(device, non_blocking=non_blocking), labels.to(device, non_blocking=non_blocking)
+            yield LazyModelState(model, inputs, labels=labels, labels_np=labels_np, **kwargs)

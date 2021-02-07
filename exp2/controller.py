@@ -6,6 +6,7 @@ from torch import nn
 from torch.nn import functional as F, Parameter
 
 from exp2.models.utils import ClassMapping, Checkpoint, DeviceTracker
+from utils import AverageMeter
 
 
 class ZeroInitLinear(nn.Linear):
@@ -110,12 +111,67 @@ def get_class_weights(config, phase):
         return torch.ones(nc, dtype=torch.float32)
 
 
+class BiC(Checkpoint, ClassMapping, DeviceTracker, nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.alpha = Parameter(torch.tensor([1.], dtype=torch.float32, requires_grad=True))
+        self.beta = Parameter(torch.tensor([0.], dtype=torch.float32, requires_grad=True))
+        self.mask = None
+
+    def set_biased_classes(self, classes):
+        idx_on = [self._classes_inv[cls] for cls in classes]
+        mask = torch.zeros(len(self.classes), dtype=torch.bool)
+        mask[idx_on] = 1
+        self.set_mask(mask)
+
+    def set_mask(self, mask: torch.Tensor):
+        self.mask = mask.to(self.device)
+
+    def forward(self, inputs):
+        outputs = inputs.clone()
+        outputs[:, self.mask] = outputs[:, self.mask] * self.alpha + self.beta
+        return outputs
+
+    def train_(self, config, loader, forward_fn, logger):
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.SGD(params=self.parameters(), lr=config.bic_lr, momentum=0.9)
+        self.remove_checkpoint()
+
+        for epoch in range(1, config.bic_epochs + 1):
+            loss_meter = AverageMeter()
+            for batch in loader:  # inputs, labels, ids
+                labels = batch[1]
+                ctrl_outputs = forward_fn(batch)
+                local_labels = self.localize_labels(labels)
+                bic_outputs = self(ctrl_outputs)
+                loss = criterion(bic_outputs, local_labels)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                batch_size = len(labels)
+                loss_meter.update(loss, batch_size)
+
+            # end of epoch, checkpoint and log metrics
+            self.checkpoint(None, loss_meter.avg, epoch)
+            logger.log({'bic_train_loss': loss_meter.avg})
+            logger.commit()
+
+        # load best bic checkpoint
+        self.load_best()
+        logger.console.info(f"BiC parameters: {self.alpha.item(), self.beta.item()}")
+
+
 class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
         self.linear = GrowingLinear(0, 0, bias=config.ctrl_bias)
         self.bn = nn.BatchNorm1d(0)
+        self.bic = BiC()
+        self._bic_active = False
+
+    def set_bic_state(self, activated):
+        self._bic_active = activated
 
     def phase_start(self, phase):
         self.criterion = nn.CrossEntropyLoss(weight=get_class_weights(self.config, phase)).to(self.device)
@@ -132,12 +188,18 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
 
     def set_warmup(self, warmup=True):
         """Freeze linear.l00 if warmup, else unfreeze."""
-        self.linear.w00.requires_grad = not warmup
-        if self.linear.b00 is not None:
-            self.linear.b00.requires_grad = not warmup
+        level = self.config.warmup_level
+        if level >= 1:
+            self.linear.w00.requires_grad = not warmup
+        if level >= 2:
+            self.linear.w10.requires_grad = not warmup
+        if level >= 3:
+            self.linear.w01.requires_grad = not warmup
 
     def extend(self, new_classes, n_new_inputs):
         super(GrowingController, self).extend(new_classes)
+        self.bic.extend(new_classes)
+        self.bic.set_biased_classes(new_classes)
         self.linear.append(n_new_inputs, len(new_classes))
         self.bn = nn.BatchNorm1d(self.bn.num_features + n_new_inputs).to(self.device)
 
@@ -152,4 +214,6 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
         x = torch.cat(inputs, dim=1)
         x = self.bn(x)
         x = self.linear(x)
+        if self._bic_active:
+            x = self.bic(x)
         return x

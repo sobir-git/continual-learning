@@ -269,7 +269,8 @@ def create_loader(config, main_dataset: PartialDataset, memoryset: PartialDatase
             return DataLoader(main_dataset.concat(memoryset), batch_size=config.batch_size, shuffle=shuffle,
                               **common_kwargs)
     else:  # no memory
-        return DataLoader(main_dataset, batch_size=config.batch_size, shuffle=shuffle, **common_kwargs)
+        return DataLoader(main_dataset, batch_size=config.batch_size, shuffle=shuffle, **common_kwargs,
+                          drop_last=config.torch['drop_last'])
 
 
 def _get_dataset(config, train: bool, transforms):

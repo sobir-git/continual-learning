@@ -2,15 +2,15 @@ import collections
 from typing import Sequence, List
 
 import PIL.Image as PILImage
+import matplotlib.pyplot as plt
+import numpy as np
+import plotly.graph_objects as go
+import seaborn as sns
 import six
 import torch
 import wandb
-import numpy as np
 
 from utils import wandb_confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.graph_objects as go
 
 
 def plotly_heatmap(data, rows=None, columns=None):
@@ -240,6 +240,7 @@ class Logger:
             # https://seaborn.pydata.org/tutorial/color_palettes.html
             self.log_heatmap(name, confmatrix, rows=rows, columns=columns, title=title, color='rocket',
                              linewidths=0, rows_label='y_true', columns_label='y_pred')
+            self.log({name + '_dict': {'matrix': confmatrix, 'rows': rows, 'columns': columns}})
         else:
             if rows != columns:
                 raise ValueError('Rectangular confusion matrix is implemented with plotly yet.')

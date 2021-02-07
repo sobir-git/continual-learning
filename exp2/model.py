@@ -11,7 +11,7 @@ from exp2.classifier import Classifier
 from exp2.controller import GrowingController
 from exp2.data import create_loader, PartialDataset
 from exp2.memory import MemoryManagerBasic
-from exp2.model_state import init_states
+from exp2.model_state import LazyModelState
 from exp2.models.splitting import create_models, log_architectures
 from logger import Logger, get_accuracy
 from utils import get_default_device, TrainingStopper, AverageMeter
@@ -83,6 +83,10 @@ class CIModelBase:
         self.config = config
         self.classifiers: List[Classifier] = []
 
+    @property
+    def last_classifier(self):
+        return self.classifiers[-1]
+
     def phase_start(self, phase):
         self.phase = phase
 
@@ -147,6 +151,13 @@ class JointModel(CIModelBase):
         self.val_memory.update(trainset_val.ids, trainset.classes)
         self.memory_manager.log_memory_sizes()
 
+        # BiC training
+        if config.bic:
+            self.logger.console.info('Training BiC ...')
+            # BiC trains on a balanced dataset, in this case validation memory samples
+            bic_loader = create_loader(config, self.val_memory.get_dataset(train=False))
+            self._train_bic(bic_loader)
+
     def _introduce_new_classes(self, classes):
         classifier = self._classifier_constructor(classes, idx=self.phase - 1)
         self.classifiers.append(classifier)
@@ -186,9 +197,19 @@ class JointModel(CIModelBase):
         # load best checkpoint
         self._load_best()
 
-    @property
-    def last_classifier(self):
-        return self.classifiers[-1]
+    def _train_bic(self, loader):
+        bic = self.controller.bic
+
+        # BiC training does not involve training others
+        @torch.no_grad()
+        def forward_fn(batch):
+            self.controller.set_bic_state(False)
+            inputs, labels, ids = batch
+            inputs, labels = inputs.to(self.device), labels.to(self.device)
+            state = LazyModelState(self, inputs, labels=labels, classes=self.controller.classes)
+            return state.ctrl_state.outputs
+
+        bic.train_(self.config, loader, forward_fn, self.logger)
 
     def _checkpoint(self, optimizer, loss, epoch):
         """Checkpoints the last classifier and the final layer."""
@@ -216,6 +237,7 @@ class JointModel(CIModelBase):
         last_classifier = self.classifiers[-1]
         last_classifier.train()
         self.controller.train()
+        self.controller.set_bic_state(False)
         loss_meter, ctrl_loss_meter = AverageMeter(), AverageMeter()
 
         for mstate in self._init_states(loader):
@@ -230,12 +252,13 @@ class JointModel(CIModelBase):
         return loss_meter.avg
 
     def _init_states(self, loader):
-        return init_states(self.config, self, loader, self.device)
+        return LazyModelState.init_states(self.config, self, loader, self.device)
 
     @torch.no_grad()
     def _validate(self, loader):
         assert isinstance(loader.dataset, PartialDataset) and not loader.dataset.is_train()
         self.set_train(False)
+        self.controller.set_bic_state(False)
         loss_meter, ctrl_loss_meter, acc_meter = AverageMeter(), AverageMeter(), AverageMeter()
         for mstate in self._init_states(loader):
             total_loss = self._get_total_loss(mstate)
@@ -253,6 +276,7 @@ class JointModel(CIModelBase):
         self.set_train(False)
         loader = create_loader(self.config, dataset)
         loss_meter, ctrl_loss_meter = AverageMeter(), AverageMeter()
+        self.controller.set_bic_state(True)
 
         # gather stuff
         all_predictions = []

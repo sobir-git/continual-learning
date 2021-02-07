@@ -30,6 +30,11 @@ torch:
   num_workers: 3
   pin_memory: false
   non_blocking: true
+  drop_last: false
 input_size: [ 3, 32, 32 ]
 warmup_epochs: 1
 ctrl_bias: true
+warmup_level: 2
+bic: true
+bic_lr: 0.001
+bic_epochs: 10
