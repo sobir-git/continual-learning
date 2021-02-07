@@ -23,6 +23,7 @@ datadir: ../data
 class_order_seed: -1
 lr_step_size: 5
 gamma: 0.95
+global_gamma: 0.8
 lr_scheduler: exp
 lr_patience: 5  # number of epochs without improvement before lr is reduced (multiplied by gamma)
 min_lr: 0.0001

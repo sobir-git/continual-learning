@@ -286,7 +286,7 @@ def run(config):
 
             console_logger.info(f'Training the model')
             train_model(config, model, train_loader, val_loaders, val_weights=weights, logger=logger)
-            config.update({'lr': max(config.min_lr, config.lr * 0.5)}, allow_val_change=True)
+            config.update({'lr': max(config.min_lr, config.lr * config.global_gamma)}, allow_val_change=True)
 
             # Simple replay updates memory
             if config.method == 'simple_replay':
