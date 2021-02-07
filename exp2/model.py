@@ -116,6 +116,10 @@ class JointModel(CIModelBase):
         self.memory_manager = memory_manager
         self.controller = GrowingController(config).to(self.device)
 
+    def phase_start(self, phase):
+        super(JointModel, self).phase_start(phase)
+        self.controller.phase_start(phase)
+
     def on_receive_phase_data(self, trainset):
         self._introduce_new_classes(trainset.classes)
         config = self.config
@@ -292,6 +296,9 @@ class JointModel(CIModelBase):
 
     def _get_total_loss(self, mstate):
         lam = self.config['lam']
-        last_clf_loss = mstate.classifier_states[self.last_classifier].loss
         ctrl_loss = mstate.ctrl_state.loss
-        return lam * last_clf_loss + ctrl_loss
+        loss = ctrl_loss
+        if lam > 0:
+            last_clf_loss = mstate.classifier_states[self.last_classifier].loss
+            loss += lam * last_clf_loss
+        return loss

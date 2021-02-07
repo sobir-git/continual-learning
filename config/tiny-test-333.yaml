@@ -8,3 +8,4 @@ torch:
   num_workers: 0
 split_pos: -7
 split_pos_lower: 4
+balance_classes: false

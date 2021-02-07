@@ -19,6 +19,7 @@ split_pos: 10
 split_pos_lower: null
 batch_size: 32
 batch_memory_samples: 16
+balance_classes: false
 class_order_seed: -1
 weight_decay: 1.0e-05
 datadir: ../data
