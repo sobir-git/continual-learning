@@ -41,3 +41,4 @@ warmup_level: 2
 bic: true
 bic_lr: 0.001
 bic_epochs: 10
+update_classifiers: true

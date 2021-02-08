@@ -172,18 +172,25 @@ class JointModel(CIModelBase):
         """Creates an optimizer for parameters of the last classifier and the final layer."""
         config = self.config
         last_classifier = self.classifiers[-1]
-        optimizer = torch.optim.SGD(params=itertools.chain(last_classifier.parameters(), self.controller.parameters()),
-                                    lr=config.lr, momentum=0.9)
+        parameters = self.controller.parameters()
+        if self.config.update_classifiers:
+            parameters = itertools.chain(parameters,
+                                         itertools.chain(*(clf.parameters() for clf in self.classifiers)))
+        else:
+            parameters = itertools.chain(parameters, last_classifier.parameters())
+        optimizer = torch.optim.SGD(params=parameters, lr=config.lr, momentum=0.9)
         return optimizer
 
     def _train_epoch(self, epoch, loader, optimizer):
         assert isinstance(loader.dataset, PartialDataset) and loader.dataset.is_train()
         # set everything to eval mode except the last classifier and the final layer
-        self.set_train(False)
-        last_classifier = self.classifiers[-1]
-        last_classifier.train()
         self.controller.train()
         self.controller.set_bic_state(False)
+        if self.config.update_classifiers:
+            self.set_classifiers_train(True)
+        else:
+            self.set_classifiers_train(False)
+        self.last_classifier.train()
         loss_meter, ctrl_loss_meter = AverageMeter(), AverageMeter()
 
         for mstate in self._init_states(loader):
@@ -244,11 +251,12 @@ class JointModel(CIModelBase):
 
     def on_phase_end(self, phase):
         assert self.phase == phase
-        # freeze the last learned classifier
-        last_classifier = self.classifiers[-1]
-        last_classifier.eval()
-        for p in last_classifier.parameters():
-            p.requires_grad = False
+        if not self.config.update_classifiers:
+            # freeze the last learned classifier
+            last_classifier = self.classifiers[-1]
+            last_classifier.eval()
+            for p in last_classifier.parameters():
+                p.requires_grad = False
 
     def feed_final_layer(self, mstate):
         if mstate.final_outputs is not None:

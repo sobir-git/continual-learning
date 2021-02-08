@@ -1,3 +1,5 @@
+import copy
+
 import torch
 from torch import nn
 from torch.nn import ConstantPad2d, Conv2d, ReLU, BatchNorm2d, Flatten, Linear, Tanh
@@ -39,9 +41,9 @@ def simple_net_20_classes(num_classes=20):
 class SimpleNetHead(EfficientNetHead):
     def __init__(self, split_pos, split_pos_lower, n_classes, model):
         nn.Module.__init__(self)
-        self.neck = model[split_pos:]
+        self.neck = copy.deepcopy(model[split_pos:])
         if split_pos_lower is not None:
-            self.lower_neck = model[split_pos_lower:]
+            self.lower_neck = copy.deepcopy(model[split_pos_lower:])
         else:
             self.lower_neck = None
 
