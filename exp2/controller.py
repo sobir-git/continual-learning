@@ -162,6 +162,19 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
         self.bn = nn.BatchNorm1d(0)
         self.bic = BiC()
         self._bic_active = False
+        self.activation = self._get_activation(config.ctrl_activation)
+
+    def _get_activation(self, activation):
+        if activation == 'softmax':
+            def softmax(inputs):
+                return torch.softmax(inputs, dim=1)
+
+            return softmax
+        elif activation in [None, 'identity']:
+            return nn.Identity()
+        if hasattr(torch, activation):
+            return getattr(torch, activation)
+        return getattr(F, activation)
 
     def set_bic_state(self, activated):
         self._bic_active = activated
@@ -203,11 +216,13 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
     def forward(self, clf_outs: List[torch.Tensor]):
         """Assumes the classifier raw outputs in a list."""
         # apply softmax
-        inputs = [F.softmax(i, dim=1) for i in clf_outs]
+        act = self.activation
+        inputs = [act(i) for i in clf_outs]
         # apply batchnorm
         x = torch.cat(inputs, dim=1)
         x = self.bn(x)
-        x = self.linear(x)
+        if self.config.ctrl_linear_layer:
+            x = self.linear(x)
         if self._bic_active:
             x = self.bic(x)
         return x

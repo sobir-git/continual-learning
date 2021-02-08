@@ -20,6 +20,8 @@ split_pos_lower: null
 batch_size: 32
 batch_memory_samples: 16
 ctrl_balance_classes: false
+ctrl_activation: softmax
+ctrl_linear_layer: true
 clf_balance_classes: false
 class_order_seed: -1
 weight_decay: 1.0e-05

@@ -4,7 +4,7 @@ lr_scheduler: exp
 gamma: 0.95
 n_phases: 5
 n_classes_per_phase: 2
-epochs: 20
+epochs: 40
 class_order_seed: 1
 memory_size: 200
 torch:
@@ -19,6 +19,9 @@ ctrl_bias: false
 warmup_level: 2
 bic: true
 bic_lr: 0.1
-lam: 1.
+lam: 0.
 lr: 0.01
 val_size: 0.2
+other: false
+ctrl_activation: sigmoid
+ctrl_linear_layer: true
