@@ -143,14 +143,16 @@ class BiC(Checkpoint, ClassMapping, DeviceTracker, nn.Module):
         optimizer = torch.optim.SGD(params=self.parameters(), lr=config.bic_lr, momentum=0.9)
         self.remove_checkpoint()
 
+        device = self.device
         for epoch in range(1, config.bic_epochs + 1):
             loss_meter = AverageMeter()
             for batch in loader:  # inputs, labels, ids
-                labels = batch[1]
-                ctrl_outputs = forward_fn(batch)
+                inputs, labels, _ = batch
+                inputs, labels = inputs.to(device), labels.to(device)
+                outputs = forward_fn(batch)
                 local_labels = self.localize_labels(labels)
-                bic_outputs = self(ctrl_outputs)
-                loss = criterion(bic_outputs, local_labels)
+                outputs = self(outputs)
+                loss = criterion(outputs, local_labels)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
