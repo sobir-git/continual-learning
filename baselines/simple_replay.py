@@ -237,7 +237,7 @@ def run(config):
                                         test_transform=data.test_transform, names=['train', 'val'])
     n_classes = len(data.class_order)
     model = create_model(config, n_classes=n_classes).to(DEVICE)
-    bic = BiC()
+    bic = BiC().to(DEVICE)
     class_map = model.class_map = ClassMapping()
     log_architecture('model', model, input_data=torch.randn(1, *config.input_size, device=DEVICE))
     logger.log({'class_order': data.class_order})
