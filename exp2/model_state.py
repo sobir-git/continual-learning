@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Iterable, List
+from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
 import torch
@@ -9,6 +9,34 @@ if TYPE_CHECKING:
     from exp2.classifier import Classifier
     from exp2.controller import GrowingController
     from exp2.model import JointModel
+
+
+def get_class_weights(config, phase, balance_classes):
+    """Class weights used for controller classification criterion."""
+    cpp = config.n_classes_per_phase  # classes per phase
+    nc = cpp * phase  # number of classes
+    if balance_classes:
+        bs = config.batch_size
+        bms = config.batch_memory_samples
+        noc = cpp * (phase - 1)  # number of old classes
+        nnc = cpp  # number of new classes
+        old_cls_weight = noc / bms
+        new_cls_weight = nnc / (bs - bms)
+        return torch.tensor([old_cls_weight] * noc + [new_cls_weight] * nnc, dtype=torch.float32)
+    else:
+        return torch.ones(nc, dtype=torch.float32)
+
+
+def get_classification_criterion(config, phase):
+    """Create classification criterion for classifier."""
+    if config.clf_balance_classes and config.other:
+        weight = get_class_weights(config, phase, config.clf_balance_classes)
+        nnc = config.n_classes_per_phase  # classes per phase, number of new classes
+        weight = torch.cat((weight[-nnc:], weight[:-nnc].sum().view(1, )))
+    else:
+        weight = None
+    criterion = torch.nn.CrossEntropyLoss(weight=weight)
+    return criterion
 
 
 def lazy_property(fn):
@@ -86,7 +114,7 @@ class LazyModelState:
         self.labels_np = labels_np
         self.labels = labels
         self.classes = classes
-        self.clf_criterion = torch.nn.CrossEntropyLoss()
+        self.clf_criterion = get_classification_criterion(model.config, model.phase).to(model.device)
         self.classifier_states = OrderedDict(
             (clf, LazyClassifierState(clf, self, self.clf_criterion)) for clf in self.classifiers)
         self.ctrl_state = LazyControllerState(self.controller, self)

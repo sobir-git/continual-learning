@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F, Parameter
 
+from exp2.model_state import get_class_weights
 from exp2.models.utils import ClassMapping, Checkpoint, DeviceTracker
 from utils import AverageMeter
 
@@ -95,22 +96,6 @@ class GrowingLinear(DeviceTracker, nn.Module):
         )
 
 
-def get_class_weights(config, phase):
-    """Class weights used for controller classification criterion."""
-    cpp = config.n_classes_per_phase  # classes per phase
-    nc = cpp * phase  # number of classes
-    if config.balance_classes:
-        bs = config.batch_size
-        bms = config.batch_memory_samples
-        noc = cpp * (phase - 1)  # number of old classes
-        nnc = cpp  # number of new classes
-        old_cls_weight = noc / bms
-        new_cls_weight = nnc / (bs - bms)
-        return torch.tensor([old_cls_weight] * noc + [new_cls_weight] * nnc, dtype=torch.float32)
-    else:
-        return torch.ones(nc, dtype=torch.float32)
-
-
 class BiC(Checkpoint, ClassMapping, DeviceTracker, nn.Module):
     def __init__(self):
         super().__init__()
@@ -182,7 +167,8 @@ class GrowingController(DeviceTracker, Checkpoint, ClassMapping, nn.Module):
         self._bic_active = activated
 
     def phase_start(self, phase):
-        self.criterion = nn.CrossEntropyLoss(weight=get_class_weights(self.config, phase)).to(self.device)
+        balance = self.config.ctrl_balance_classes
+        self.criterion = nn.CrossEntropyLoss(weight=get_class_weights(self.config, phase, balance)).to(self.device)
 
     def get_predictions(self, outputs) -> np.ndarray:
         """Get predictions given controller outputs."""

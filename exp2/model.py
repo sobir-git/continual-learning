@@ -4,7 +4,6 @@ from typing import List
 import numpy as np
 import torch
 from sklearn.metrics import confusion_matrix
-from torch import nn
 
 from baselines.simple_replay import create_lr_scheduler, get_last_learning_rate, scheduler_step
 from exp2.classifier import Classifier
@@ -17,59 +16,6 @@ from logger import Logger, get_accuracy
 from utils import get_default_device, TrainingStopper, AverageMeter
 
 DEVICE = get_default_device()
-
-
-def get_class_weights(config, newset, otherset=None):
-    """Return class weights for training a new classifier.
-
-    If otherset is None, it will return equal weight for all classes. Otherwise it will return weights
-    according to the config, for all classes and "other"(at the last index).
-
-    Args:
-        newset (PartialDataset): the dataset with samples of new classes
-        otherset (PartialDataset, optional): the dataset with samples of old classes, all of which will be considered
-            as one class, namely "other".
-    """
-
-    n_new_classes = len(newset.classes)
-    if otherset is None:
-        # return equal weights
-        weight = torch.ones(n_new_classes)
-    elif len(otherset) == 0:
-        weight = torch.tensor([1.] * n_new_classes + [0.])
-    else:
-        otherset_size = len(otherset)
-        newset_size = len(newset)
-        n_other_classes = len(otherset.classes)
-        r = 1
-
-        # account for otherset size
-        if config.balance_other_samplesize:
-            r *= otherset_size / newset_size
-
-        # account for num of classes
-        if config.balance_other_classsize:
-            r *= n_new_classes / n_other_classes
-
-        weight = [1.] * n_new_classes + [1 / r]
-        weight = torch.tensor(weight)
-
-    # normalize weights
-    weight = weight / weight.sum()
-    return weight
-
-
-def get_classification_criterion(config, newset, otherset, device):
-    """Create classification criterion given the new classes samples (newset) and old class samples (otherset)."""
-    # if batch_memory_samples are specified positive integer, then we don't apply class weights, we go with dual
-    # dataloader, that is to include a certain number of memory samples in each batch
-    if config.batch_memory_samples > 0:
-        criterion = nn.CrossEntropyLoss()
-    else:
-        weight = get_class_weights(config, newset, otherset)
-        weight = weight.to(device)
-        criterion = nn.CrossEntropyLoss(weight=weight)
-    return criterion
 
 
 class CIModelBase:
@@ -155,7 +101,7 @@ class JointModel(CIModelBase):
         if config.bic:
             self.logger.console.info('Training BiC ...')
             # BiC trains on a balanced dataset, in this case validation memory samples
-            bic_loader = create_loader(config, self.val_memory.get_dataset(train=False))
+            bic_loader = create_loader(config, self.val_memory.get_dataset(train=True))
             self._train_bic(bic_loader)
 
     def _introduce_new_classes(self, classes):

@@ -12,8 +12,13 @@ torch:
   drop_last: true
 split_pos: -7
 split_pos_lower: null
-balance_classes: false
+ctrl_balance_classes: false
+clf_balance_classes: false
 warmup_epochs: .inf
 ctrl_bias: false
 warmup_level: 2
-bic_lr: 0.01
+bic: true
+bic_lr: 0.1
+lam: 1.
+lr: 0.01
+val_size: 0.2
