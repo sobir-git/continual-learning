@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from sklearn.metrics import confusion_matrix
 
-from baselines.simple_replay import create_lr_scheduler, get_last_learning_rate, scheduler_step
+from baselines.utils import create_lr_scheduler, scheduler_step, get_last_learning_rate
 from exp2.classifier import Classifier
 from exp2.controller import GrowingController
 from exp2.data import create_loader, PartialDataset

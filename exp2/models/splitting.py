@@ -26,7 +26,7 @@ def load_pretrained(model_name):
 def create_models(config, device) -> (FeatureExtractor, callable):
     global PRETRAINED
     if PRETRAINED is None:
-        PRETRAINED = load_pretrained(config.pretrained)
+        PRETRAINED = load_pretrained(config.model)
     if isinstance(PRETRAINED, EfficientNet):
         fe, head_constructor = split_efficientnet(config, PRETRAINED)
     else:  # TODO: check if it is really simplenet

@@ -1,14 +1,13 @@
 import argparse
 from typing import List
 
-import numpy as np
 import torch
-import torch.optim.lr_scheduler as sch
 import wandb
 from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
 
-import utils
+from baselines.utils import create_optimizer, create_lr_scheduler, scheduler_step, get_last_learning_rate, \
+    get_final_layer, get_dataset_weight
 from exp2.config import load_configs
 from exp2.controller import BiC
 from exp2.data import prepare_data, create_loader
@@ -19,9 +18,9 @@ from exp2.models.simple_net import split_simple_net_20_classes
 from exp2.models.splitting import load_pretrained, log_architecture
 from exp2.models.utils import Checkpoint, ClassMapping
 from logger import Logger
-from utils import get_default_device, AverageMeter, TrainingStopper, cutmix_data
+from utils import get_default_device, AverageMeter, TrainingStopper, get_console_logger
 
-console_logger = utils.get_console_logger(name='main')
+console_logger = get_console_logger(name='main')
 DEVICE = get_default_device()
 
 
@@ -89,56 +88,9 @@ def evaluate_model(config, logger, model, dataloaders: List[DataLoader], bic: Bi
     return loss_meter.avg, acc_meter.avg
 
 
-def create_optimizer(config, model):
-    if config.faster_output_learning_rate:
-        final = get_final_layer(model)
-        all_except_final = list(filter(lambda p: all(p is not i for i in final.parameters()), model.parameters()))
-        optimizer = torch.optim.SGD([{'params': all_except_final},
-                                     {'params': final.parameters(), 'lr': config.lr * 10}],
-                                    momentum=0.9, lr=config.lr)
-    else:
-        optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, momentum=0.9)
-    return optimizer
-
-
-def create_lr_scheduler(config, optimizer):
-    if config.lr_scheduler == 'exp':
-        return sch.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.gamma)
-    elif config.lr_scheduler == 'reduce_on_plateu':
-        return sch.ReduceLROnPlateau(optimizer, 'min', factor=config.gamma,
-                                     patience=config.lr_patience,
-                                     verbose=True, min_lr=0.00001)
-    else:
-        raise ValueError(f"config.lr_scheduler be one of 'exp', 'reduce_on_plateu' but got {config.lr_scheduler}")
-
-
-def scheduler_step(lr_scheduler, loss):
-    if isinstance(lr_scheduler, sch.ExponentialLR):
-        lr_scheduler.step()
-    elif isinstance(lr_scheduler, sch.StepLR):
-        lr_scheduler.step()
-    elif isinstance(lr_scheduler, sch.ReduceLROnPlateau):
-        lr_scheduler.step(loss)
-
-
-def get_last_learning_rate(lr_scheduler):
-    try:
-        return lr_scheduler.get_last_lr()[0]
-    except AttributeError:
-        pass
-
-    try:
-        return lr_scheduler._last_lr[0]
-    except AttributeError:
-        pass
-
-    return lr_scheduler.optimizer.param_groups[0]['lr']
-
-
-def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders: List[DataLoader],
+def train_model(config, model: Checkpoint, optimizer, train_loader: DataLoader, val_loaders: List[DataLoader],
                 val_weights: List = None, logger: Logger = None):
     model.train()
-    optimizer = create_optimizer(config, model)
     lr_scheduler = create_lr_scheduler(config, optimizer)
     criterion = torch.nn.CrossEntropyLoss()
     non_blocking = config.torch['non_blocking']
@@ -157,12 +109,7 @@ def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders
             outputs = model(inputs)
             outputs = outputs[:, :n_classes]  # select only relevant neurons
             loc_labels = class_map.localize_labels(labels)
-            do_cutmix = config.regularization == 'cutmix' and np.random.rand(1) < config.cutmix_prob
-            if do_cutmix > 0:
-                inputs, labels_a, labels_b, lam = cutmix_data(x=inputs, y=loc_labels, alpha=config.cutmix_alpha)
-                loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(outputs, labels_b)
-            else:
-                loss = criterion(outputs, loc_labels)
+            loss = criterion(outputs, loc_labels)
 
             optimizer.zero_grad()
             loss.backward()
@@ -194,13 +141,6 @@ def train_model(config, model: Checkpoint, train_loader: DataLoader, val_loaders
     model.load_best()
 
 
-def get_final_layer(model) -> torch.nn.Linear:
-    while not isinstance(model, torch.nn.Linear):
-        last_child = list(model.children())[-1]
-        model = last_child
-    return model
-
-
 @torch.no_grad()
 def maybe_reset_model_weights(config, model):
     if config.reset_weights == 'none':
@@ -219,12 +159,6 @@ def maybe_reset_model_weights(config, model):
     return model
 
 
-def get_dataset_weight(dataset):
-    if len(dataset) == 0:
-        return 0
-    return len(dataset.classes) / len(dataset)
-
-
 def run(config):
     logger = Logger(config, console_logger=console_logger)
     console_logger.info('config:' + str(config))
@@ -241,6 +175,7 @@ def run(config):
     class_map = model.class_map = ClassMapping()
     log_architecture('model', model, input_data=torch.randn(1, *config.input_size, device=DEVICE))
     logger.log({'class_order': data.class_order})
+    lr = config.lr
 
     for phase in range(1, config.n_phases + 1):
         do_train = config.phase is None or config.phase == phase
@@ -285,8 +220,9 @@ def run(config):
                 weights = [get_dataset_weight(trainset_val), get_dataset_weight(memory_valset)]
 
             console_logger.info(f'Training the model')
-            train_model(config, model, train_loader, val_loaders, val_weights=weights, logger=logger)
-            config.update({'lr': max(config.min_lr, config.lr * config.global_gamma)}, allow_val_change=True)
+            optimizer = create_optimizer(config, model, lr)
+            lr = max(config.min_init_lr, config.lr * config.global_gamma)
+            train_model(config, model, optimizer, train_loader, val_loaders, val_weights=weights, logger=logger)
 
             # Simple replay updates memory
             if config.method == 'simple_replay':

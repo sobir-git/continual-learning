@@ -14,7 +14,7 @@ gamma: 0.95
 lr_patience: 3
 lr_step_size: 1
 val_size: 0.2
-pretrained: 'simple_net_20_classes'
+model: 'simple_net_20_classes'
 split_pos: 10
 split_pos_lower: null
 batch_size: 32
